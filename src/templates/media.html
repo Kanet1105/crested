@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>App</title>
+ 
+    <style>
+        #container {
+            margin: 0px auto;
+            width: 750px;
+            height: 375px;
+        }
+
+        #videoElement {
+            height: 375px;
+            width: 500px;
+            background-color: #666;
+            display: inline-block;
+        }
+
+        #chatContainer {
+            height: 375px;
+            width: 230px;
+            border: 1px;
+            display: inline-block;
+            vertical-align: top;
+            margin: 0px 0px 0px 10px;
+        }
+
+        #chatOutput {
+            position: relative;
+            width: 100%;
+            height: 90%;
+            resize: none;
+        }
+
+        #chatInput {
+            position: relative;
+            width: 100%;
+            height: 5%;
+            resize: none;
+        }
+    </style>
+</head>
+ 
+<body>
+    <div id="container">
+        <video autoplay="true" id="videoElement"></video>
+
+        <div id="chatContainer">
+            <textarea id="chatOutput" readonly></textarea>
+            <textarea id="chatInput"></textarea>
+        </div>
+    </div>
+
+<script>
+    var video = document.querySelector("#videoElement");
+
+    if (navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(function (stream) {
+                video.srcObject = stream;
+            })
+            .catch(function (error) {
+                console.log("Something went wrong!");
+            });
+
+        var chat = document.querySelector();
+    }
+</script>
+</body>
+</html>
