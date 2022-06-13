@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "crested-core",
+    "crested-web",
+]
