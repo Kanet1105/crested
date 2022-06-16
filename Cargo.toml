@@ -2,5 +2,5 @@
 
 members = [
     "crested-core",
-    "crested-web",
+    "crested-wasm",
 ]
