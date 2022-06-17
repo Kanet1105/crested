@@ -1,0 +1,10 @@
+[build]
+target = "index.html"
+release = false
+dist = "build"
+public_url = "http://127.0.0.1:8000/build/"
+filehash = true
+
+[clean]
+dist = "build"
+cargo = false
