@@ -1,6 +1,7 @@
 mod components;
 
 use yew::{Context, Component, Html, html};
+use yew_router::router::BrowserRouter;
 use components::navbar::NavBar;
 
 pub struct Index;
@@ -16,8 +17,7 @@ impl Component for Index {
     fn view(&self, _ctx: &Context<Self>) -> Html {
         html! {
             <>
-                <NavBar>
-                </NavBar>
+            <header><NavBar /></header>
             </>
         }
     }
