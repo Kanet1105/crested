@@ -1,12 +1,28 @@
 mod components;
+mod pages;
 
-use yew::{Context, Component, Html, html};
-use yew_router::router::BrowserRouter;
-use components::navbar::NavBar;
+use yew::prelude::*;
+use yew_router::prelude::*;
+use pages::{home, features};
 
-pub struct Index;
+#[derive(Clone, PartialEq, Routable)]
+pub enum Route {
+    #[at("/")]
+    Home,
+    #[at("/features")]
+    Features,
+}
 
-impl Component for Index {
+fn switch(route: &Route) -> Html {
+    match route {
+        Route::Home => html! { <home::Home /> },
+        Route::Features => html! { <features::Features /> },
+    }
+}
+
+pub struct App;
+
+impl Component for App {
     type Message = ();
     type Properties = ();
 
@@ -17,7 +33,7 @@ impl Component for Index {
     fn view(&self, _ctx: &Context<Self>) -> Html {
         html! {
             <>
-            <header><NavBar /></header>
+                <pages::home::Home />
             </>
         }
     }

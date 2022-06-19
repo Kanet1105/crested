@@ -1,5 +1,5 @@
-use crested_wasm::Index;
+use crested_wasm::App;
 
 fn main() {
-    yew::start_app::<Index>();
+    yew::start_app::<App>();
 }
