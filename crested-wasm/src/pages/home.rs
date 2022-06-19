@@ -14,7 +14,7 @@ impl Component for Home {
     fn view(&self, _ctx: &Context<Self>) -> Html {
         html! {
             <>
-            <header><NavBar/></header>
+            <header><NavBar nav_title="CRESTED App" /></header>
             </>
         }
     }

@@ -14,8 +14,6 @@ impl Component for Features {
     fn view(&self, _ctx: &Context<Self>) -> Html {
         html! {
             <>
-            <header><NavBar/></header>
-            <div><NavBar/></div>
             </>
         }
     }
