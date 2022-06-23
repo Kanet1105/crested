@@ -13,7 +13,7 @@ use yew_router::prelude::*;
 enum Route {
     #[at("/")]
     Home,
-    #[at("/introduction")]
+    #[at("/getting-started")]
     GettingStarted,
     #[at("/developer")]
     Developer,
