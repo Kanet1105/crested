@@ -2,4 +2,4 @@
 .vscode
 Cargo.lock
 target
-crested-wasm/build
+webassembly/build
