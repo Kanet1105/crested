@@ -1,0 +1,10 @@
+[build]
+target = "index.html"
+release = false
+dist = "build/dist"
+public_url = "/"
+filehash = true
+
+[clean]
+dist = "build/dist"
+cargo = false
