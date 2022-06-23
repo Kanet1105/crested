@@ -1,4 +1,4 @@
-use crested_wasm::App;
+use webassembly::App;
 
 fn main() {
     yew::Renderer::<App>::new().render();
