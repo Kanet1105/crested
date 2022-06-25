@@ -24,12 +24,6 @@ pub fn Home() -> Html {
                     </Card>
                 </Card>
             </div>
-
-            <div>
-                <Card include_header={false}>
-                    {""}
-                </Card>
-            </div>
         </>
     }
 }
