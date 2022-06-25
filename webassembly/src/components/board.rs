@@ -8,8 +8,6 @@ use yew::virtual_dom::VChild;
 pub struct BoardProps {
     pub name: &'static str,
     pub include_nav: bool,
-    // #[prop_or_default]
-    // pub children: ChildrenRenderer<BoardItem>,
 }
 
 #[function_component]
