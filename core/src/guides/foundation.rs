@@ -58,11 +58,11 @@ pub fn example_2() {
 }
 
 /// 2. Memory Regions - "stack", "heap" and "static"
+/// 
 /// Rust 코드를 작성할 때 가장 중요한 세 가지 메모리 영역은 "stack" "heap" 그리고 "static".
 /// 
 /// "stack" 은 함수 호출을 위해 프로그램이 사용하는 메모리 segment. 함수가 호출될 때마다
 /// "frame" 으로 불리는 연속적인 메모리 chunk 가 stack 의 맨 위에 할당.
-/// 
 /// "heap" 은 현재 call stack 과 관련 없는 memory pool. 또한 명시적으로 해제 (freeing) 될 때까지 
 /// 살아있다. 주로 함수 frame 을 넘어서 살아있어야 하는 value 들을 저장할 때 유용.
 /// heap-allocated 된 메모리 pointer 의 lifetime 은 제한이 없음.
@@ -71,8 +71,8 @@ pub fn example_2() {
 pub fn example_3() {
     use std::boxed::Box;
 
-    let value: &str = "value";
-    println!("{:p}", value);
+    let value: String = String::from("value");
+    println!("{:p}", &value);
 
     let heap_allocated_value = Box::new(value);
     println!("{:p}", heap_allocated_value);
@@ -99,8 +99,118 @@ pub fn example_4() {
 /// 'static variable 은 프로그램 종료시까지 할당 해제되지 않지만 'static reference 의 경우
 /// static memory 를 가리키지 않을 수 있다. 하지만 static memory 에 존재하므로 레퍼런스 variable 은
 /// 프로그램 종료시까지 살아있음.
+/// 
+/// const 는 compile 시 완전히 계산되며 const 를 참조하는 코드들은 전부 const 의 value 로 대체됨.
+/// const 는 place 가 아니므로 메모리 영역이나 다른 저장 영역과 관련이 없음.
+/// 특정 value 를 위한 사용하기 편한 이름으로 생각해도 된다.
+
+/// 3. Ownership
+/// 
+/// 모든 value 는 single owner 를 갖는다 ("Copy" trait 을 갖는 value 들은 예외).
+/// 
+/// === value move 의 예 ===
+/// - 기존 value 를 새 variable 에 부여.
+/// - value 를 vector 에 push.
+/// - box 를 통해 heap 에 할당.
+/// ========================
+/// 
+/// integer 와 floating-point type 을 포함한 Rust 의 원시 타입들은 Copy.
+/// non-Copy type 이나 resource 를 할당 해제해야 하는 타입들의 경우 제외.
+/// Box 가 Copy 라면 box1 = box2 일 때 두 box 가 heap-memory 를 이중으로 free 하려는 문제가 생김.
+/// 
+/// value 를 "drop" 하는 책임은 owner 에게 있음. Rust 에서 dropping 은 owner 가 담당하며
+/// variable 이 scope 에 더 이상 존재하지 않을 때 실행.
 #[test]
 pub fn example_5() {
-    
+    let x1 = 42;
+    let y1 = Box::new(84);
+
+    {
+        let z = (x1, y1);
+    }
+
+    let x2 = x1;
+    // let y2 = y1; y1 은 primitive type 이 아니므로 Copy 가 아님 -> compile error.
+}
+
+/// Drop 순서
+/// 
+/// variable (함수 파라미터를 포함) 은 역순으로 drop
+/// variable 이 순서대로 drop 된다면 나중에 선언된 variable 들이 잘못된 reference 를 가질 수 있음.
+/// 
+/// nested value 들은 source-code 순서대로 drop
+/// nested value 들은 순서대로 drop 돼야 직관적이므로 순서대로 drop.
+
+/// 4. Borrowing and Lifetimes
+/// 
+/// "reference" 는 추가적인 기능을 갖는 pointer.
+/// "shared referece": &T 는 공유될 수 있는 pointer 를 의미.
+/// shared reference 는 Copy 이므로 복사되며 reference 가 가리키는 value 들은 immutable.
+#[test]
+pub fn example_6() {
+    let x = 5;
+    let mut y = 6;
+    example_6_inner(&x, &mut y);
+}
+
+pub fn example_6_inner(input: &i32, sum: &mut i32) {
+    *sum = *input + *input;
+    assert_eq!(*sum, 2 * *input);
+}
+
+/// "mutable reference": &mut T 는 컴파일러에 의해 exclusive 로 간주됨 (exclusive mutability).
+/// 현재 thread 이외에 다른 thread 가 target value 에 접근할 수 없다고 추정.
+/// exclusive mutability 가 없었다면 example_7 의 주석처리된 부분이 compile 될 수 있음.
+#[test]
+pub fn example_7() {
+    let x = 1;
+    let mut y = 0;
+    example_7_inner(&x, &mut y);
+    // example_7_inner(&y, &mut y); compile error
+}
+
+pub fn example_7_inner(input: &i32, output: &mut i32) {
+    if *input == 1 {
+        *output = 2;
+    }
+    if *input != 1 {
+        *output = 3;
+    }
+}
+
+/// example_8 에서 y 는 다른 pointer 를 가리킬 수 있지만 y 가 가리키는 pointer 의 value 를 바꾸지는 못함.
+/// z 를 통해서 y 의 pointer value 를 바꿀 순 있지만 z 가 다른 reference 를 갖게는 못함.
+#[test]
+pub fn example_8() {
+    let a = 24;
+    let x = 42;
+
+    let mut y = &x;
+    y = &a; // 가능
+    // *y = 24; 불가능
+    println!("{:?}", y);
+
+    let z = &mut y;
+    *z = &x; // 가능
+    // z = &x; 불가능
+    println!("{:?}", y);
+}
+
+/// mutable reference 와 owner 의 차이는 owner 는 value 를 dropping 할 책임이 있다는 것.
+/// 
+#[test]
+pub fn example_9() {
+    let mut x = Box::new(42);
+    example_9_inner(&mut x);
+}
+
+pub fn example_9_inner(s: &mut Box<i32>) {
+    // let was = *s;
+    let was = std::mem::take(s);
+    *s = was;
+
+    let mut r = Box::new(84);
+    std::mem::swap(s, &mut r);
+    assert_ne!(*r, 84);
 }
 pub fn eof() {}
