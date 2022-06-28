@@ -225,5 +225,20 @@ pub fn example_9_inner(s: &mut Box<i32>) {
 
 /// 5. Interior Mutability
 /// 
-/// "shared reference" 를 통해서 "value" 를 
+/// "Interior Mutability" 는 type 의 shared reference 를 통해서 "value" 를 변경할 수 있는 기능으로
+/// 두 가지로 분류.
+///     1. shared reference 를 통해 mutable reference 를 가지는 것. => Mutex, RefCell.
+///     2. shared reference 를 통해 기존 value 를 "replace" 하는 것. => std::sync::atomic, Cell
+/// 
+/// 1 번의 경우 Mutex 와 RefCel 이 있으며 내부적으로 한 개의 mutable reference 만 줄 수 있도록 
+/// safety mechanism 을 구현하며 UnsafeCell type 에 의존적임. 현재로써 UnsafeCell 은 shared reference
+/// 를 통해서 value 를 변경할 수 있는 수단을 제공하는 "유일한" 방법.
+/// 
+/// 2 번은 "method" 를 통해 value 를 읽고 replace 하는 방법을 제공. Cell type 은 "safe" 한
+/// interior mutability 를 제공하는 흥미로운 type 으로 thread 간 공유 (shareable)될 수 없고 Cell 안의 
+/// value 의 reference 를 제공하지 않는다. 대신 Cell 의 method 를 통해 value 를 바꾸거나 value 의 
+/// copy 를 얻을 수 있다. Thread 간 공유되지 않기 때문에 Cell 의 value 는 shared reference 를 통해 
+/// 동시에 변경 (concurrent mutation) 되는 것을 막는다.
+
+/// 6. Lifetimes
 pub fn eof() {}
