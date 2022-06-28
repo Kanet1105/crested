@@ -235,10 +235,96 @@ pub fn example_9_inner(s: &mut Box<i32>) {
 /// 를 통해서 value 를 변경할 수 있는 수단을 제공하는 "유일한" 방법.
 /// 
 /// 2 번은 "method" 를 통해 value 를 읽고 replace 하는 방법을 제공. Cell type 은 "safe" 한
-/// interior mutability 를 제공하는 흥미로운 type 으로 thread 간 공유 (shareable)될 수 없고 Cell 안의 
+/// interior mutability 를 제공하는 흥미로운 type 으로 thread 간 공유될 (shareable) 수 없고 Cell 안의 
 /// value 의 reference 를 제공하지 않는다. 대신 Cell 의 method 를 통해 value 를 바꾸거나 value 의 
 /// copy 를 얻을 수 있다. Thread 간 공유되지 않기 때문에 Cell 의 value 는 shared reference 를 통해 
 /// 동시에 변경 (concurrent mutation) 되는 것을 막는다.
 
 /// 6. Lifetimes
+/// 
+/// "lifetime" 이란 어떤 reference 가 유효한 (valid) 코드의 영역을 부르는 이름.
+/// Rust 의 "borrow checker" 가 lifetime 의 본질.
+#[test]
+pub fn example_10() {
+    let arbitrary_number = 0.5; // 0.0 ~ 1.0
+    let mut x = Box::new(42);
+    let r = &x; // 'a (x 의 reference 의 lifetime) 시작.
+
+    if arbitrary_number > 0.5 {
+        *x = 84;
+        // borrow checker 가 r 이 사용되지 않은 것을 확인하고 x 의 mutable reference 를
+        // 통해 x 의 값을 변경하는 것을 허용.
+    } else {
+        println!("{}", r); // 'a 종료
+    }
+}
+
+/// example_11 을 통해 lifetime 에 hole 이 존재할 수 있다는 것을 확인.
+#[test]
+pub fn example_11() {
+    let mut x = Box::new(42);
+    let mut z = &x; // (1)
+
+    for i in 0..100 {
+        println!("{:?}", z); // (2)
+        x = Box::new(i); // (3)
+        z = &x; // (4)
+    }
+
+    println!("{}", z);
+}
+/// lifetime 'a 는 z 가 &x 를 갖는 순간부터 시작한다. (3) 에서 'a 는 종료하고 (4) 에서 다시 시작.
+/// (4) 에서 print 문으로 빠져나오거나 다시 (2) 로 돌아가도 둘 다 valid 한 value flow (x 가 move 되면 
+/// z 가 그 줄 이후부터 더 이상 존재하지 않음) 이므로 example_11 은 borrow checker 를 통과하여 compile 된다.
+
+/// "Generic Lifetimes"
+/// 사용자 정의 type 에 다른 value 의 reference 를 저장해야 하거나 &self 보다 오래 살아야 하는 reference
+/// 를 반환해야 할 때 사용.
+/// type 과 lifetime 의 사용에 있어서 두 가지 미묘한 차이가 있음.
+///     1. 사용자 정의 type 이 Drop 을 구현한다면 type 을 drop 할 때 generic lifetime 도 종료된다.
+///        만약 Drop 을 구현하지 않는다면 type 안에 저장된 reference 들을 무시하거나 더 이상 사용하지
+///        않아도 됨.
+///     2. 여러 generic lifetime 에 대한 type 을 사용하는 것은 복잡도를 올리는 일이므로 여러 reference
+///        를 갖는 사용자 정의 타입에서만 사용하는 것이 권장되며 method 에서 반환하는 reference 의
+///        lifetime 은 그 중 하나의 generic lifetime 을 사용한다.
+/// 
+/// multiple generic lifetime example
+pub struct StrSplit<'s, 'p> {
+    delimiter: &'p str,
+    document: &'s str,
+    spliced: Vec<&'s str>,
+    index: i32,
+}
+
+impl<'s, 'p> StrSplit<'s, 'p> {
+    pub fn new(delimiter: &'p str, document: &'s str) -> Self {
+        Self {
+            delimiter,
+            document,
+            spliced: document.split(delimiter).collect::<Vec<&'s str>>(),
+            index: 0,
+        }
+    }
+}
+
+impl<'s, 'p> Iterator for StrSplit<'s, 'p> {
+    type Item = &'s str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.spliced.pop()
+    }
+}
+
+#[test]
+pub fn example_12() {
+    let target = "Hello, world!";
+    let by = ",";
+    
+    let mut tokenizer = StrSplit::new(by, target);
+    for token in tokenizer {
+        println!("{:?}", &token);
+    }
+}
+
+/// left off from the page 15..
 pub fn eof() {}
