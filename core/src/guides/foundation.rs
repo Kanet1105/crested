@@ -196,8 +196,9 @@ pub fn example_8() {
     println!("{:?}", y);
 }
 
-/// mutable reference 와 owner 의 차이는 owner 는 value 를 dropping 할 책임이 있다는 것.
-/// 
+/// owner 는 value 를 dropping 할 책임이 있다는 것 외에 owner 와 mutable reference 는 큰 차이 없음.
+/// owner 로서 할 수 있는 기능들을 mutable reference 를 통해서 할 수 있지만 value 를 mutable reference
+/// 로 옮기게 되면 (move) 다른 value 를 원래 자리에 넣어야 한다.
 #[test]
 pub fn example_9() {
     let mut x = Box::new(42);
@@ -205,12 +206,24 @@ pub fn example_9() {
 }
 
 pub fn example_9_inner(s: &mut Box<i32>) {
-    // let was = *s;
+    // let was = *s; 와 같이 mutable reference 를 통해서 그 값의 ownership 을 변경하게 되면 기존의
+    // mutable reference 가 빈 값을 가리키게 돼서 불가능하나 아래와 같이 std::mem::take(s) 를 통해서 s 의 
+    // 값을 default 로 replace 해주고 가져올 수 있음.
     let was = std::mem::take(s);
-    *s = was;
+    println!("{:?}, {:?}", s, was); // 0, 42
+    // s 의 value 는 이제 0 을 가리키는 mutable reference 이고 was 가 기존 value 였던 42 의
+    // mutable reference 를 소유하게 됨.
+
+    *s = was; 
+    // s 는 was 의 mutable reference.
 
     let mut r = Box::new(84);
     std::mem::swap(s, &mut r);
     assert_ne!(*r, 84);
+    // mutable reference 를 value 로 갖는 variable 간의 swap
 }
+
+/// 5. Interior Mutability
+/// 
+/// "shared reference" 를 통해서 "value" 를 
 pub fn eof() {}
