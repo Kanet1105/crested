@@ -289,6 +289,17 @@ pub fn example_11() {
 ///        lifetime 은 그 중 하나의 generic lifetime 을 사용한다.
 /// 
 /// multiple generic lifetime example
+#[test]
+pub fn example_12() {
+    let target = "Hello, world!";
+    let by = ",";
+    
+    let mut tokenizer = StrSplit::new(by, target);
+    for token in tokenizer {
+        println!("{:?}", &token);
+    }
+}
+
 pub struct StrSplit<'s, 'p> {
     delimiter: &'p str,
     document: &'s str,
@@ -315,16 +326,61 @@ impl<'s, 'p> Iterator for StrSplit<'s, 'p> {
     }
 }
 
+/// Three Types of "variance" - "covariant", "invariant" and "contravariant"
+/// 
+/// "variance" 는 어떤 type 이 다른 type 들의 subtype 이고 어떤 상황에 subtype 이 supertype 대신
+/// 쓰일 수 있는지 정하는 개념. type A 가 최소한 type B 만큼 유용할 때 A 는 B 의 subtype 이라고 함.
+/// Rust 에서 &'a str 을 인자로 받는 함수에 &'static str 을 전달할 수 있는 상황이 variance 의 예시.
+/// 'static 은 어느 'a 가 살아있는 동안에도 같이 생존하므로 최소한 'a 보다 더 유용할 수 있기 때문에
+/// 'a 의 subtype 이라고 할 수 있음. 이런 정의는 공식적이라기보다는 실용적인 정의.
+/// 
+/// "covariant" type: 해당하는 type 대신 subtype 을 대신 사용해도 되는 type.
+/// 
+/// === e.g. ===
+/// &'a T 를 type 으로 갖는 variable 은 해당 타입 대신 더 유용하고 오래 생존하는 &'static T 를 사용할 수 있기 
+/// 때문에 'a T 는 covariant type.
+/// ============
+/// 
+/// "invariant" type: 반드시 주어진 타입을 제공해야 함을 의미.
+/// 
+/// === e.g. ===
+/// &mut T 와 같이 &mut Vec<&'a str> 을 인자로 받는 함수에 &mut Vec<&'static str> 을 전달할 수 없기 때문에
+/// &mut Vec<&'a str> 은 invariant type. 
+/// ============
+/// 
+/// "contravariant" type: 함수 타입처럼 함수 인자가 덜 중요할 때 더 유용해지는 type.
+/// 
+/// === e.g. ===
+/// let x: &'static str; // more useful, lives longer
+/// let x: &'a      str; // less useful, lives shorter
+/// 
+/// fn take_func1(&'static str) // stricter, so less useful
+/// fn take_func2(&'a      str) // less strict, more useful
+/// ============
+/// 
+/// 위 예시처럼 Fn(T) 는 T 에 대해 contravariant 하다.
+/// 
+/// variance 가 lifetime 에 미치는 영향
 #[test]
-pub fn example_12() {
-    let target = "Hello, world!";
-    let by = ",";
+pub fn example_13() {
+    let mut s = "hello";
+    *MutStr { s: &mut s }.s = "world";
+    // 위 코드는 MutStr type 의 variable 'x' 를 정의하고 *x.s 에 "world" 를 value 로 쓰는 것과 같음.
+    // 수학에서의 치환 (replacement) 과 비슷함. => *MutStr { s: &mut s } == x
+    println!("{}", s);
     
-    let mut tokenizer = StrSplit::new(by, target);
-    for token in tokenizer {
-        println!("{:?}", &token);
-    }
+    let mut s = "hello";
+    *MutStrError { s: &mut s }.s = "world";
+    // println!("{}", s); // 이 코드는 컴파일되지 않음.
 }
 
-/// left off from the page 15..
+struct MutStr<'a, 'b> {
+    s: &'a mut &'b str,
+}
+
+struct MutStrError<'a> {
+    s: &'a mut &'a str,
+}
+
+/// 
 pub fn eof() {}
