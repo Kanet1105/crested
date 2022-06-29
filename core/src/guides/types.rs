@@ -227,6 +227,32 @@ struct Foo {
 /// bool type 이 std::fmt::Debug 를 implement 하는 것 => 불가능 
 /// ============
 
+/// "Blanket Implementations"
+/// 
+/// orphan rule 은 "impl<T> MyTrait for T where T:" 구문처럼 trait 을 여러 type T 에 대해 implment 할 수
+/// 있도록 해주며 이를 "blanket implementation" 이라고 한다. 오직 trait 을 정의하는 crate 에서만
+/// blanket implementation 을 할 수 있다.
 
+/// "Fundamental Types"
+/// 
+/// 특정 type 들 (&, &mut 그리고 Box)은 너무나 필수적이어서 표면상 orphan rule 을 무시하더라도 
+/// trait 을 implement 할 수 있도록 해야 할 필요가 있고 이 때 "#[fundamental]" marker 를 사용.
+/// 
+/// === e.g. ===
+/// 만약 orphan rule #[fundamental] marker 가 없다면 impl IntoIterator for &MyType 이 허용되지 않음.
+/// 마찬가지로 기본 type 에 blanket implementation 을 하는 것도 허용되지 않음.
+/// ============
+
+/// "Covered Implementations"
+/// todo!();
+
+/// "Trait Bounds"
+/// 
+/// Hashmap 의 key type 이 Hash + Eq 를 implement 해야 하고 thread::spawn 의 인자로 전달되는 function 이
+/// 반드시 FnOnce + Send + 'static 을 implement 해야 하는 것처럼 generic 코드를 작성하다 보면 trait bound
+/// 를 반드시 포함하게 된다. trait bound 는 "T: Trait where T: Type" 의 형태를 띌 필요가 없음. 또한 임의의 
+/// type 으로 제한할 수 있고 반드시 generic parameter 를 포함할 필요도 없음.
+/// 
+/// 
 
 pub fn eof() {}
