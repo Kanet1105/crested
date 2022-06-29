@@ -13,10 +13,10 @@
 /// "byte-aligned": 8 bits 의 배수에 value 를 위치시킨다. 
 /// 
 /// 64 bits CPU 에서 대부분의 value 들은 8 bytes (64 bits) 의 덩어리로 접근됨. 이를 CPU 의 "word size"라고 함.
-/// 만약 pointer 가 8 byte aligned 되지 않고 8 byte 의 중간에서 시작한다면 하드웨어는 8 byte 를 두 블럭으로 나눠서 
-/// 중앙에서 끝까지 읽고 다시 처음부터 중앙까지 읽는 2 번의 read 를 하고 메모리에 쓸 때에도 2 번의 작업으로 
-/// 나눠서 하기 때문에 비효율적이며 multithreading  환경이라면 첫 4 bytes 를 읽는 도중에 나머지 4 bytes 에 다른 
-/// thread 가 쓸 수 있기 때문에 value 오염 가능성이 존재.
+/// 만약 pointer 가 8 byte aligned 되지 않고 8 byte 의 중간에서 시작한다면 데이터는 메모리의 두 블럭에 걸쳐서
+/// 쓰여지기 때문에 데이터를 읽기 위해서는 첫 번 째 블럭의 중간부터 끝까지 읽고 두 번째 블럭의 처음부터 중간까지 읽는
+/// 2번의 read 가 발생하며 write 시에도 똑같이 2 번에 걸쳐서 써야 하기 때문에 비효율적이며 multithreading 환경에서 
+/// 첫 4 bytes 를 읽는 도중에 나머지 4 bytes 에 다른 thread 가 쓸 수 있기 때문에 value 오염 가능성이 존재.
 /// 
 /// aligned 되지 않은 데이터에 작업을 하는 것을 "misaligned access" 라고 하며 나쁜 퍼포먼스와 동시성 문제를
 /// 일으킬 수 있음. 이런 이유로 많은 CPU 들은 arguments 들이 "naturally aligned" 되는 상태를 요구하거나 선호.
