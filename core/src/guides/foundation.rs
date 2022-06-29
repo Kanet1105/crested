@@ -100,7 +100,7 @@ pub fn example_4() {
 /// static memory 를 가리키지 않을 수 있다. 하지만 static memory 에 존재하므로 레퍼런스 variable 은
 /// 프로그램 종료시까지 살아있음.
 /// 
-/// const 는 compile 시 완전히 계산되며 const 를 참조하는 코드들은 전부 const 의 value 로 대체됨.
+/// const 는 컴파일 시 완전히 계산되며 const 를 참조하는 코드들은 전부 const 의 value 로 대체됨.
 /// const 는 place 가 아니므로 메모리 영역이나 다른 저장 영역과 관련이 없음.
 /// 특정 value 를 위한 사용하기 편한 이름으로 생각해도 된다.
 
@@ -160,7 +160,7 @@ pub fn example_6_inner(input: &i32, sum: &mut i32) {
 
 /// "mutable reference": &mut T 는 컴파일러에 의해 exclusive 로 간주됨 (exclusive mutability).
 /// 현재 thread 이외에 다른 thread 가 target value 에 접근할 수 없다고 추정.
-/// exclusive mutability 가 없었다면 example_7 의 주석처리된 부분이 compile 될 수 있음.
+/// exclusive mutability 가 없었다면 example_7 의 주석처리된 부분이 컴파일 될 수 있음.
 #[test]
 pub fn example_7() {
     let x = 1;
@@ -275,7 +275,7 @@ pub fn example_11() {
 }
 /// lifetime 'a 는 z 가 &x 를 갖는 순간부터 시작한다. (3) 에서 'a 는 종료하고 (4) 에서 다시 시작.
 /// (4) 에서 print 문으로 빠져나오거나 다시 (2) 로 돌아가도 둘 다 valid 한 value flow (x 가 move 되면 
-/// z 가 그 줄 이후부터 더 이상 존재하지 않음) 이므로 example_11 은 borrow checker 를 통과하여 compile 된다.
+/// z 가 그 줄 이후부터 더 이상 존재하지 않음) 이므로 example_11 은 borrow checker 를 통과하여 컴파일 된다.
 
 /// "Generic Lifetimes"
 /// 사용자 정의 type 에 다른 value 의 reference 를 저장해야 하거나 &self 보다 오래 살아야 하는 reference

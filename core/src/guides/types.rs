@@ -55,5 +55,6 @@ struct Foo {
 
 /// C 메모리 표현의 한계는 struct 의 모든 field 들을 원본 struct 에 명시된 순서대로 위치시켜야 한다는 것.
 /// repr(Rust) 를 사용한 기본 Rust 표현 방식은 이러한 결정적 방식의 field ordering 을 요구하지 않기 때문에
-/// 같은 field 를 가진 두 개의 다른 타입이 같은 메모리 layout 을 갖는 것을 보장하지 않는다.
+/// 같은 field 를 가진 두 개의 다른 타입이 같은 메모리 layout 을 갖는 것을 보장하지 않는다. 대신 field 를 
+/// reorder 할 수 있기 때문에 field 간 padding 이 필요 없어지고 Foo 는 이제 필드 크기인 16 bytes 가 됨.
 pub fn eof() {}
