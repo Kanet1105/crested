@@ -121,9 +121,9 @@ struct Foo {
 /// }
 /// ============
 /// 
-/// 위와 같은 코드가 있을 때 is_contained_in() 함수를 실행하기 위한 주소를 알아야 하기 때문에 pattern trait 을 
-/// implement 한 모든 type 에 대해서 해당 함수 body 의 사본을 만들어야 한다. 어떤 impl Pattern type 에 대해서
-/// 컴파일러는 그 주소가 바로 impl Pattern type 이 trait method 를 implement 하는 주소라는 것을 알아야 하는데
+/// 위와 같은 코드가 있을 때 type 이 is_contained_in() 함수를 실행하기 위한 주소를 알아야 하기 때문에 pattern trait 을 
+/// implement 한 모든 type 에 대해서 해당 함수 body 의 사본을 만들어야 한다. 어떤 impl pattern type 에 대해서
+/// 컴파일러는 그 주소가 바로 impl pattern type 이 trait method 를 implement 하는 주소라는 것을 알아야 하는데
 /// 모든 type 에 대해 사용 가능한 단일 주소는 없기 때문에 복사를 통해 각각의 주소를 갖는 것을 static dispatch 라 하며
 /// 이렇게 generic type 에서 non-generic type 으로 가는 방식을 "monomorphization" 이라고 함.
 /// 
@@ -133,6 +133,100 @@ struct Foo {
 /// 
 /// monomorphization 의 단점은 type instance 가 각각 따로 컴파일되므로 컴파일 시간이 증가하고 함수의 복사본을 만들기
 /// 때문에 프로그램 크기가 증가. 또한 같은 명령에 대해 여러 복사본이 존재하므로 CPU instruction cache 의 효율이
-/// 떨어진다. 
+/// 떨어진다.
+/// 
+/// "dynamic dispatch" 는 static dispatch 와 상반되는 개념으로 구체적인 type 을 알 수 없는 상황에서 사용자 코드가 
+/// generic type 의 trait method 를 호출할 수 있도록 함.
+/// 
+/// === e.g. ===
+/// impl String {
+///     pub fn contains(&self, p: &dyn Pattern) -> bool {
+///         p.is_contained_in(&*self)
+///     }
+/// }
+/// ============
+/// 
+/// 위와 같이 impl Pattern 을 "&dyn Pattern" 으로 대체한다면 호출자는 pattern 의 주소와 is_contained_in method 의
+/// 주소를 제공해야 한다. 호출자가 실제로 제공하는 정보는 "vtable" 이라고 하는 메모리 덩어리의 주소이며 vtable 은
+/// is_contained_in() 함수를 포함한 모든 trait method 의 implementation 에 대한 주소를 가지고 있다. vtable 을 통해
+/// 여러 type 이 하나의 함수를 사용할 수 있다.
+/// 
+/// "dyn" 앞에 "&" 가 붙는 이유는 더 이상 컴파일 시 pattern type 에 대한 size 를 알 필요가 없기 때문.
+/// 바꿔 말하면 dyn trait 은 !Sized 이며 Sized 로 만들기 위해서 사이즈를 알 수 있는 pointer type 으로 감싼다.
+/// 이 pointer 는 vtable 을 가리키는 extra word 를 가진 wide pointer. 사용자는 &mut, Box 그리고 Arc 와 같이 
+/// wide pointer 를 가질 수 있는 type 을 dynamic dipatch 를 위해 사용 가능.
+/// 
+/// "trait object" 란 trait 을 implement 하는 type 과 해당 implementation 의 vtable 의 조합.
+/// 
+/// === e.g. ===
+///     1. clone() method 가 Self 를 반환하는 Clone trait 은 trait object 가 될 수 없다. 컴파일러가
+///        dyn Clone trait object 가 실행하는 clone() 함수의 반환 type 을 알 수 없기 때문이다.
+///     2. std 의 Extend trait 은 제공된 iterator 의 type 에 대해 generic 하기 때문에 dyn Extend 의
+///        trait object vtable 은 여러 주소를 가질 수 있어서 하나의 type 에 대해 하나의 entry 를 가져야 하는
+///        vtable 의 특성상 trait object 가 될 수 없다.
+///     3. 첫 번째 인자로 self 를 가지지 않는 정적 method 는 trait object 가 될 수 없다.
+/// ============
+/// 
+/// trait object 에 대해 보다 보면 Self: Sized 라는 trait bound 를 불 수 있는데 이는 Self 가 trait object
+/// 로 쓰일 수 없다는 것을 의미 (쓰일 수 있다면 !Sized 가 됐을 것).
+/// 
+/// dynamic dispatch 는 type 과 method 에 해당하는 function body 를 복사-붙여넣을 필요가 없기 때문에
+/// 컴파일 시간을 줄일 수 있다는 장점이 있으며 CPU instruction cache 의 효율을 높일 수 있지만 컴파일러가
+/// 특정 type 에 대해 최적화하는 것을 막으며 vtable 을 찾는 시간 (lookup time) 이 overhead 가 되는 단점이 존재.
+/// static 과 dynamic dispatch 의 선택에 있어 명확한 정답은 존재하지 않음. 유저가 dispatch 를 선택할 수 있는
+/// library 를 만들고 싶다면 저자는 static dispatch 로 작성해야 함 (dynamic dispatch 로 작성시 유저에게 선택권
+/// 없음). Final code 를 작성한다면 dynamic dispatch 를 사용하는 편이 더 깔끔한 코드를 작성할 수 있으며
+/// 약간의 vtable lookup cost 만 지불한다면 컴파일 시간을 줄일 수 있는 방법.
+
+/// "Generic Traits"
+/// 
+/// Rust trait 은 두 개중 하나의 방법을 통해 generic 할 수 있음.
+///     1. trait Foo<T> 와 같은 generic type parameter 를 통해서
+///     2. trait Foo { type Bar; } 와 같이 associated type 을 사용해서
+/// 
+/// 둘의 차이점은 미묘하지만 간단한 선택 기준이 존재.
+/// 
+/// The Rule of Thumb: 주어진 type 에 대해 단 하나의 implementation 만 필요하면 associated type 을,
+///                    그렇지 않다면 generic type 을 사용.
+/// 
+/// 이는 associated type 은 사용이 훨씬 쉬운 데 비해 다중 implementation 을 허용하지 않기 때문이며 가장
+/// 권장되는 방법은 associated type 을 사용할 수 있는 곳에는 모두 associated type 을 사용하는 것이다.
+
+/// "Coherence" and the "Orphan Rule"
+/// Rust 는 어느 곳에 trait 을 implement 할 수 있는지 어떤 type 에 implement 할 수 있는지에 대해 꽤 엄격한
+/// 규칙을 가지고 있음. 이러한 규칙들은 "coherence" property 를 위해 존재.
+/// 
+/// "Coherence" property: 주어진 type 또는 method 에 대해 옳은 implementation 선택지는 단 하나만 존재.
+/// 사용자 정의 Display trait 을 std 의 bool type 에 implement 한다고 가정한다면 컴파일러는
+/// bool value 를 출력하는 함수를 실행해야 하는 상황에서 사용자 정의 implementation 을 사용해야 할 지 표준
+/// 라이브러리의 implementation 을 사용해야 할 지 어떤 implementation 이 더 올바른지 알 수 없기 때문에
+/// 실행할 수 없다. coherence property 는 이렇게 컴파일러가 선택해야 하는 상황을 예방하기 위해 존재.
+/// 
+/// coherence 를 지키는 가장 쉬운 방법은 trait 을 정의하는 crate 만 해당 trait 의 implementation 을
+/// 사용하도록 정하는 것. 이는 trait 이 정의된 crate 이외의 곳에서 implment 하지 않으면 충돌이 발생할 염려가
+/// 없기 때문인데 실질적으로 이런 방식은 지나치게 제한적이고 오히려 trait 을 쓸모없게 만들 수 있다. 
+/// 
+/// === e.g. ===
+/// 만약 trait 을 정의하는 crate 에서만 trait 을 implement 하도록 제한하도록 규칙을 정한다면 
+/// std::fmt::Debug 또는 serde::Serialize 를 사용자 정의 type 에 implement 하는 것이 불가능해진다.
+/// ============
+/// 
+/// 따라서 적절한 규칙을 정하여 "upstream" crate 가 "downstream" code 의 흐름을 깨지 않는 선에서 코드를 
+/// 작성할 수 있어야 한다.
+///     "upstream"   : 사용자 코드가 의존하는 것
+///     "downstream" : 사용자 코드에 의존하는 것
+/// 
+/// Rust 는 이를 위해 "orphan rule" 을 제공한다.
+/// 
+/// "orphan rule": trait 을 implement 할 때 해당 type 또는 trait 중 단 하나만이 사용자 정의 crate 에 대해
+///                지역적이어야 (local) 가능하다.
+/// 
+/// === e.g. ===
+/// 사용자 정의 type 이 std::fmt::Debug 를 implement 하는 것 => 가능
+/// bool type 이 사용자 정의 trait 을 implement 하는 것 => 가능
+/// bool type 이 std::fmt::Debug 를 implement 하는 것 => 불가능 
+/// ============
+
+
 
 pub fn eof() {}
