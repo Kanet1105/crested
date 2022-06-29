@@ -27,11 +27,11 @@
 /// 어떤 complex type 이 u8, u16 그리고 u32 를 가지면 해당 type 은 4-byte aligned.
 /// ============ 
 
-/// type 의 "layout" 은 compiler 가 해당 type 의 in-memory 표현을 정하는 방식.
+/// type 의 "layout" 은 컴파일러 가 해당 type 의 in-memory 표현을 정하는 방식.
 /// Rust 는 "repr" attribute 를 통해 "repr(C)" 와 같이 C 또는 C++ 스타일의 메모리 layout 을 가질 수 있으며 이는
 /// FFI (Foreign Function Interface) 를 통해 다른 언어들과 상호작용해야 할 때 유용함. 또한 C layout 은
 /// 예측 가능하고 변하지 않기 때문에 repr(C) 는 raw pointer 를 다루는 unsafe 한 상황에서 매우 유용하게 쓰임.
-/// 또 다른 유용한 표현으로는 repr(transparent) 가 있으며 type 이 단일 field 로 이루어져 있을 때 compiler 는 
+/// 또 다른 유용한 표현으로는 repr(transparent) 가 있으며 type 이 단일 field 로 이루어져 있을 때 컴파일러 는 
 /// 내부와 외부의 type 을 같게 보장.
 #[repr(C)]
 struct Foo {
@@ -44,7 +44,7 @@ struct Foo {
 /// 위의 struct Foo 에서 tiny field 의 논리적 크기는 1 bit (true or false) 이지만 CPU 와 메모리는 bytes 단위로
 /// 작동하기 때문에 tiny 의 in-memory representation 은 1 byte 로 주어진다. normal 은 4 byte type 이므로
 /// 4-byte-aligned 되지만 tiny 에 할당된 1 byte 때문에 normal 의 alignment 가 어긋난다. 이를 수정하기 위해
-/// compiler 는 유저 코드에서는 무시되는 3-byte "padding" 을 tiny 와 normal 사이에 삽입.
+/// 컴파일러 는 유저 코드에서는 무시되는 3-byte "padding" 을 tiny 와 normal 사이에 삽입.
 /// 
 /// small field 는 1-byte value 이지만 현재 byte offset 이 1 + 3 + 4 = 8 로 이미 byte-aligned 되었기 때문에
 /// small 은 normal 바로 다음에 위치. 현재 1 + 3 + 4 + 1 = 9 이므로 Foo 가 aligned 된다면 long 은 8 byte-aligned
@@ -57,4 +57,82 @@ struct Foo {
 /// repr(Rust) 를 사용한 기본 Rust 표현 방식은 이러한 결정적 방식의 field ordering 을 요구하지 않기 때문에
 /// 같은 field 를 가진 두 개의 다른 타입이 같은 메모리 layout 을 갖는 것을 보장하지 않는다. 대신 field 를 
 /// reorder 할 수 있기 때문에 field 간 padding 이 필요 없어지고 Foo 는 이제 필드 크기인 16 bytes 가 됨.
+/// Rust 는 기본적으로 type 들의 layout 에 대한 보장이 많지 않기 때문에 컴파일러가 type 들을 rearrange 하기가
+/// 조금 더 자유롭다.
+/// 
+/// 또 다른 layout 은 "repr(packed)" 로 컴파일러에 field 간 padding 을 사용하지 않는다고 명시적으로 알려주는 것.
+/// misaligned access 가 발생하며 이로 인한 퍼포먼스 저하를 사용자가 감당하는 방식이며 메모리가 제한적일 때 사용.
+/// 
+/// 특정 field 나 type 에 더 큰 alignment 를 사용하고 싶을 때 "repr(align(n))" 을 사용. 서로 다른 value 를
+/// array 처럼 메모리에 연속적 (contiguous) 하게 저장하고 각각 다른 CPU 의 cache line 을 사용하게 해서 동시성
+/// 프로그래밍에서 퍼포먼스 저하를 불러올 수 있는 "false sharing" 을 피하기 위해 사용.
+/// "false sharing": 두 CPU 가 cache line 을 공유하는 서로 다른 value 를 접근하는 상황. 같은 entry 를 업데이트
+/// 하려고 경쟁하는 상황이 발생.
+
+/// 컴파일러와 "complex type" 을 메모리에 표현하는 방식은 다음과 같다.
+/// 
+///     Tuple: 같은 type 과 순서를 field 로 갖는 struct
+///     Array: element 간 padding 이 없이 연속적인 순서의 contained type 
+///     Union: variant 마다 독립적인 layout 을 갖고 최대 모든 variant 가 최대 alignment 를 갖는다.
+///     Enumeration: Union 과 같으나 "enum variant discriminant" 를 추가적으로 숨겨진 공유 field 로 갖는다.
+///                  discriminant 는 코드가 주어진 enum variant 의 value 를 결정하기 위해 사용하는 value.
+///                  discriminant field 의 크기는 variant 의 갯수에 따라 정해짐.
+
+/// "Dynamically Sized Types" 과 "Wide Pointers"
+/// 
+/// Rust 컴파일러는 대부분의 type 에 대해 컴파일 시 type 크기를 알기 위해 Sized 를 자동으로 implement 함.
+/// 두 가지 예외로 "trait object" 와 "slice" 가 있음. 컴파일 시 크기를 알 수 없고 런타임에 type 의 크기가 정해지는
+/// type 들을 "dynamically sized types" (DSTs) 라고 함.
+/// 
+/// 컴파일러는 Struct fields, 함수 인자, 반환 values, variable type 그리고 array type 등 거의 모든 상황에서 type 의
+/// 크기가 정해질 것을 요구함. T: ?Sized 와 같이 명시적으로 opt-out 하지 않으면 이 규칙은 모든 type 에 적용되며
+/// 함수 인자에 slice 나 trait object 같은 DST 가 있다면 이는 매우 불편.
+/// 
+/// unsized 와 sized type 을 이어주는 방법으로 "wide pointer" (또는 "fat pointer") 가 있음. wide pointer 는
+/// 일반적인 pointer 에서 컴파일러가 pointer 를 생성하기 위해 필요한 정보를 제공하는 추가적인 word-sized field 를 
+/// 갖는 pointer. DST 의 reference 에 대해서 컴파일러는 자동으로 wide pointer 를 생성하며 생성된 wide pointer 는
+/// 크기를 갖는다. 구체적으로 usize 의 2 배 크기 (타겟 플랫폼의 단어 크기) 이며 pointer 를 저장하는 usize 와 
+/// type 을 완성하기 위해 필요한 추가 정보를 담는 usize 로 구성. Box 와 Arc 도 T: ?Sized 를 지원하므로 
+/// wide pointer 를 저장할 수 있다.
+
+/// 2. Traits and Trait Bounds
+/// 
+/// Rust type 시스템의 핵심 중 하나인 "trait" 은 정의될 때 서로의 존재를 모르는 두 type 이 상호 운용될 수 있게 해줌.
+/// 어떤 함수가 T 에 대해 generic 하다고 할 때 컴파일러는 모든 type T 에 대해 같은 function 의 사본을 만든다.
+/// Vec<i32> 또는 Hashmap<String, bool> 을 만든다는 것은 generic type 과 implementation block 을 복사-붙여넣고
+/// 해당 block 의 generic instance 들을 구체적으로 제공된 type 으로 교체하는 것을 의미한다. Vec type 전체를 복사해서 
+/// T 를 i32 로 바꾸고 Hashmap type 전체를 복사해서 K 를 String, V 를 bool 로 바꾸는 방식이지만 실제 컴파일러는
+/// impl block 을 전체적으로 복사-붙여넣기 하지는 않고 사용하는 코드 부분만 컴파일한다. 만약 Vec<i32> type 에서
+/// find() 함수를 사용하지 않는다면 컴파일러는 해당 함수를 compile 하지 않는다.
+/// 
+/// === e.g. ===
+/// impl String {
+///     pub fn contains(&self, p: impl Pattern) -> bool {
+///         p.is_contained_in(self)
+///     }
+/// }
+/// 
+/// 위 코드는 아래 코드와 동일하다. T: impl Trait 처럼 쓰여진 위 방식은 아래 방식의 syntactic sugar.
+/// 
+/// impl String {
+///     pub fn contains<P: Pattern>(&self, p: P) -> bool {
+///         p.is_contained_in(self)
+///     }
+/// }
+/// ============
+/// 
+/// 위와 같은 코드가 있을 때 is_contained_in() 함수를 실행하기 위한 주소를 알아야 하기 때문에 pattern trait 을 
+/// implement 한 모든 type 에 대해서 해당 함수 body 의 사본을 만들어야 한다. 어떤 impl Pattern type 에 대해서
+/// 컴파일러는 그 주소가 바로 impl Pattern type 이 trait method 를 implement 하는 주소라는 것을 알아야 하는데
+/// 모든 type 에 대해 사용 가능한 단일 주소는 없기 때문에 복사를 통해 각각의 주소를 갖는 것을 static dispatch 라 하며
+/// 이렇게 generic type 에서 non-generic type 으로 가는 방식을 "monomorphization" 이라고 함.
+/// 
+/// 컴파일러가 코드를 최적화할 때 generic 이 존재하지 않았던 것처럼 할 수 있으며 impl Pattern 의 method 인 
+/// is_contained_in() 함수가 trait 없이 직접 호출되는 것처럼 만든다. 컴파일러는 해당하는 type 들을 모두 알 수 있고
+/// is_contained_in() 의 implementation 을 inline 할 수도 있다.
+/// 
+/// monomorphization 의 단점은 type instance 가 각각 따로 컴파일되므로 컴파일 시간이 증가하고 함수의 복사본을 만들기
+/// 때문에 프로그램 크기가 증가. 또한 같은 명령에 대해 여러 복사본이 존재하므로 CPU instruction cache 의 효율이
+/// 떨어진다. 
+
 pub fn eof() {}
