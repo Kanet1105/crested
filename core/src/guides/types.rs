@@ -253,6 +253,22 @@ struct Foo {
 /// 를 반드시 포함하게 된다. trait bound 는 "T: Trait where T: Type" 의 형태를 띌 필요가 없음. 또한 임의의 
 /// type 으로 제한할 수 있고 반드시 generic parameter 를 포함할 필요도 없음.
 /// 
+/// "Derive Trait"
 /// 
+/// "#[derive(Trait)]" 은 "impl Trait for Foo<T> where T: Trait" 형태의 syntactic sugar. 대부분의 경우 이런 식의
+/// 사용을 의도하지만 그렇지 않은 경우도 있다.
+/// 
+/// === e.g.===
+/// #[derive(Clone)]
+/// struct Foo<T> {
+///     inner: Arc<T>
+/// }
+/// ===========
+/// 
+/// 위 struct 에서 Foo 는 Clone 을 implement 하려고 했지만 Arc<T> 는 이미 Foo 와 상관없이 Clone 을 implement
+/// 한 type 이다. 대부분의 경우 이런 식의 derive trait 사용이 문제되진 않지만 꼭 필요하지 않은 곳에 trait bound 를
+/// 추가하게 되는 상황이 발생. 
+
+/// todo!() Trait Bounds 의 자세한 내용과 사용 예제는 사용해보면서 채울 것
 
 pub fn eof() {}
