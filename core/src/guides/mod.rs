@@ -3,3 +3,5 @@
 pub mod foundation;
 /// 2. Types
 pub mod types;
+/// 3. Idiomatic Rust
+pub mod idioms;
