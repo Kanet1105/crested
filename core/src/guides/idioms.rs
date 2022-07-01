@@ -192,8 +192,8 @@ impl Default for Second {
 
 /// 4. The "Default" Trait
 /// new() 를 associated function 으로 가진 모든 type 들을 추상화하기 어렵기 때문에 
-/// 다른 container 와 generic type 들과 사용 가능한 Default 제공.
-/// Arc, Box, Cow 등의 단일 element container 들의 기본 implementation.
+/// 다른 컨테이너와 generic type 들과 사용 가능한 Default 제공.
+/// Arc, Box, Cow 등의 단일 element 컨테이너 들의 기본 implementation.
 /// #[derive(Default)] 를 사용해서 struct 내 모든 타입이 implement 할 수 있다.
 #[test]
 fn example_9() {
@@ -252,4 +252,176 @@ impl<T: Clone> HVec<T> {
     }
 }
 
+/// 6. Finalization in Destructors
+/// 
+/// Rust 는 finally (함수가 어떤 식으로 종료되어도 실행되는 블럭) 를 제공하지 않기 때문에 type 이
+/// 소멸 시 실행되는 destructor 를 Drop trait 을 통해 구현.
+/// 
+/// Destuctor 가 실행되는 상황
+///     1. The end of block
+///     2. Early return
+///     3. Program panics
+/// 
+/// 프로그램 panic 시 러스트는 stack 을 되감으며 (unwinding) destructor 를 호출. 따라서 destructor 가 실행되는 
+/// 함수에서 panic 시 스택에 있는 destructor 들은 호출이 된다.
+#[test]
+fn example_11() {
+    let _fin = Finalizer { index: 0 };
+    Finalizer { index: 1 }; // variable 에 할당하지 않는 경우 destructor 바로 호출.
+    let _ = Finalizer { index: 2 }; // _ << 언더바에 suffix 가 없는 경우도 바로 호출.
+    example_11_inner();
+}
+
+struct Finalizer {
+    index: u8,
+}
+
+impl Drop for Finalizer {
+    fn drop(&mut self) {
+        println!("{} running on exit", self.index);
+    }
+}
+
+fn example_11_inner() {
+    let inner = Finalizer { index: 3 };
+    panic!(); // panic 시 stack unwind 하면서 destructor 모두 호출
+}
+
+/// panic 과 early return 시에도 실행되는 호출 블럭이지만 이미 panic 이 발생한 thread 에서 실행되지 않으며
+/// 굉장히 묵시적이고 알아채기 힘든 코드가 될 수 있기 때문에 디버깅 시 매우 까다로워질 수 있다. 만약 stack unwinding 시 
+/// panic 이 발생할 경우에는 destructor 를 추가적으로 실행시키지 않으며 이후에 좋은 선택지가 따로 없기 때문에 시스템
+/// 리소스들을 원치 않는 방치하게 될 수 있다.
+
+/// 7. std::mem::{take(), replace()}
+/// 
+/// mutable reference 를 통해서 value 의 ownership 을 가져올 수 없기 때문에 value swap 을 할 때 replace 또는
+/// take 를 사용.
+#[test]
+fn example_12() {
+    // 'A' to 'B'
+    let mut a = MyEnum::A { name: "MyEnum::A".to_string(), x: 0 };
+    a_to_b(&mut a);
+
+
+}
+
+#[derive(Debug)]
+enum MyEnum {
+    A { name: String, x: u8 },
+    B { name: String, }
+}
+
+fn a_to_b(e: &mut MyEnum) {
+    if let MyEnum::A { name, x: 0 } = e {
+        // *e = MyEnum::B { name: *name } // 불가능 "cannot move name behind the mutable refernce"
+        *e = MyEnum::B { name: std::mem::take(name) };
+        // std::mem::take 는 기존 값을 default value 로 대체하고 기존 value 를 반환함.
+        // mutable reference 의 value ownership 을 가져올 수 없는 문제를 해결할 수 있는 방법.
+        // std::mem::replace() 도 매우 비슷하나 replace 할 value 의 type 까지 인자로 전달해야 함.
+        // *e = MyEnum::B { name: std::mem::replace(name, String::new()) };
+    }
+    println!("{:?}", e);
+}
+
+/// 단점으로는 틀리게 되면 borrow checker 가 싫어질 수 있으며 컴파일러가 double store 를 최적화하지 못 하는데서
+/// 오는 퍼포먼스 손해를 입을 수 있다. take() 는 destination type 이 Default 를 implement 해야 하며 번거롭다면
+/// replace() 를 사용해야 함.
+
+/// 8. On-Stack Dynamic Dispatch
+/// 
+/// 여러 value 를 dynamic dispatch 할 수 있고 이를 위해 서로 다른 type object 마다 새로운 variable 을 할당해야
+/// 했다. dyn 을 사용해서 deferred initialization (지연 초기화) 를 구현할 수 있다.
+#[test]
+fn example_13() {
+    let arg = "-";
+    let (mut stdin_read, mut file_read);
+
+    let readable: &mut dyn std::io::Read = if arg == "-" {
+        stdin_read = std::io::stdin();
+        &mut stdin_read
+    } else {
+        file_read = std::fs::File::open(&arg).unwrap();
+        &mut file_read
+    };
+}
+
+/// 이 방식은 File 과 Stdin 에 대해 직접 monomorphization 을 구현할 필요가 없고 나주에 사용할 필요가 없는 
+/// 것들을 초기화 할 필요가 없으며 heap 에 아무것도 할당하지 않는다는 장점이 있지만 Box 로 구현할 때보다 움직이는
+/// 부분이 더 많다는 단점이 있다.
+/// 
+/// Box-based Version
+#[test]
+fn example_14() {
+    let arg = "-";
+
+    let readable: Box<dyn std::io::Read> = if arg == "-" {
+        Box::new(std::io::stdin())
+    } else {
+        Box::new(std::fs::File::open(arg).unwrap())
+    };
+}
+
+/// 9. Iterating Over an Option
+/// 
+/// "Option" 은 IntoIterator 를 implement 하고 0 개 또는 1 개의 element 를 포함하는 컨테이너라 볼 수 있다.
+#[test]
+fn example_15() {
+    // version 1
+    let turing = Some("Turing");
+    let mut logicians = vec!["Curry", "Kleene", "Markov"];
+    logicians.extend(turing);
+
+    // version 2
+    if let Some(turing_inner) = turing {
+        logicians.push(turing_inner);
+    }
+
+    // chain() 사용
+    for logician in logicians.iter().chain(turing.iter()) {
+        println!("{} is a logician", logician);
+    }
+}
+
+/// 10. Pass Variables to Closure
+/// 
+/// 기본적으로 closure 는 borrowing 으로 환경을 가져온다. move-closure 로 전체 환경을 가져올수도 있지만
+/// 몇몇 variable 만 move 하고 싶다면 데이터를 복사하거나 reference 를 전달하거나 다른 변환을 사용해야 한다.
+#[test]
+fn example_16() {
+    use std::rc::Rc;
+
+    let num1 = Rc::new(1);
+    let num2 = Rc::new(2);
+    let num3 = Rc::new(3);
+    let closure = {
+        // "num1" moved.
+        let num2 = num2.clone(); // num2 is cloned.
+        let num3 = num3.as_ref(); // num3 is borrowed.
+        move || {
+            *num1 + *num2 + *num3;
+        }
+    };
+}
+
+fn example_16_alt() {
+    use std::rc::Rc;
+
+    let num1 = Rc::new(1);
+    let num2 = Rc::new(2);
+    let num3 = Rc::new(3);
+
+    let num2_cloned = num2.clone();
+    let num3_borrowed = num3.as_ref();
+    let closure = move || {
+        *num1 + *num2_cloned + *num3_borrowed;
+    };
+}
+
+/// 장점으로는 example_16_alt() 보다 example_16() 을 쓰게 되면 복사된 데이터가 closure 정의와 같이 묶이게 되고 목적이
+/// 분명해지며 closure 에서 쓰이지 않더라도 drop 될 수 있다. 데이터가 복사되거나 move 되어도 같은 variable 이름을
+/// 사용 가능. 추가적인 indentation 이 흠이다.
+
+/// 11. #[non-exhaustive] and Private Fields for Extensibility
+/// 
+/// 
 fn eof() {}
