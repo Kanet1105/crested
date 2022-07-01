@@ -215,6 +215,7 @@ struct MyConfig {
 /// 5. Collections are Smart Pointers
 /// 
 /// "Deref" trait 을 사용해서 collection 을 owning 과 borrowed view 를 제공하는 smart pointer 로 취급.
+/// struct 가 내부적으로 data structure 를 가지고 있을 때 해당 field 의 borrowed view 를 제공
 #[test]
 fn example_10() {
     let hvec = HVec::new(&[1, 2, 3, 4, 5]);
