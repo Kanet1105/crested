@@ -6,3 +6,5 @@ pub mod foundation2; // gon's summary
 pub mod types;
 /// 3. Idiomatic Rust
 pub mod idioms;
+/// 4. Design Patterns
+pub mod patterns;
