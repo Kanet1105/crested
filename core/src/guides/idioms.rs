@@ -421,7 +421,57 @@ fn example_16_alt() {
 /// 분명해지며 closure 에서 쓰이지 않더라도 drop 될 수 있다. 데이터가 복사되거나 move 되어도 같은 variable 이름을
 /// 사용 가능. 추가적인 indentation 이 흠이다.
 
-/// 11. #[non-exhaustive] and Private Fields for Extensibility
+/// 11. #[non_exhaustive] and Private Fields for Extensibility
 /// 
-/// 
-fn eof() {}
+/// Rust 는 라이브러리 저자가 하위 호환성을 해치지 않고 pub struct 에 field 를 추가하거나 pub enum 에 새로운 variant 를 
+/// 추가하는 2가지 방법을 제공한다.
+///     1. #[non_exhaustive] 를 struct, enum 그리고 enum variant 에 추가.
+///     2. private field 를 추가해서 직접 초기화를 하거나 match 를 사용할 수 없게 함.
+mod example_17_mod {
+    #[non_exhaustive]
+    pub struct S {
+        pub foo: i32,
+    }
+
+    #[non_exhaustive]
+    pub enum AdmitMoreVariants {
+        VariantA,
+        VariantB,
+        #[non_exhaustive]
+        VariantC { a: String },
+    }
+}
+#[test]
+fn example_17() {
+    let s = example_17_mod::S { foo: 0 };
+    let example_17_mod::S { foo: _, .. } = s;
+    let some_enum = example_17_mod::AdmitMoreVariants::VariantA;
+
+    match some_enum {
+        example_17_mod::AdmitMoreVariants::VariantA => println!("It's an A"),
+        example_17_mod::AdmitMoreVariants::VariantB => println!("It's a B"),
+        example_17_mod::AdmitMoreVariants::VariantC { a, .. } => println!("It's a c"),
+        _ => println!("It's a new variant."),
+    }
+}
+
+/// 12. Temporary Mutability
+/// 전처리 이후 수정될 일이 없는 variable 은 2 가지 방법으로 임시적인 mutability 를 구현한다.
+///     1. Nested block.
+///     2. Variable rebinding.
+#[test]
+fn example_18() {
+    // Nested block
+    let data_1 = {
+        let mut data_1 = vec![2, 1, 5, 3, 4];
+        data_1.sort();
+        data_1
+    };
+    println!("{:?}", &data_1);
+
+    // Variable rebinding
+    let mut data_2 = vec![2, 1, 5, 3, 4];
+    data_2.sort();
+    let data_2 = data_2;
+    println!("{:?}", &data_2);
+}
