@@ -7,5 +7,3 @@ pub mod types;
 /// 3. Idiomatic Rust
 pub mod idioms;
 pub mod idioms2; // gon's summary
-/// 4. Design Patterns
-pub mod patterns;
