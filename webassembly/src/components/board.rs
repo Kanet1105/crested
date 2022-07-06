@@ -1,83 +1,98 @@
-use std::convert::From;
-
+use std::rc::Rc;
 use yew::prelude::*;
-use yew::html::ChildrenRenderer;
-use yew::virtual_dom::VChild;
 
-#[derive(PartialEq, Properties)]
-pub struct BoardProps {
-    pub name: &'static str,
-    pub include_nav: bool,
+pub enum AppListActions {
+    Next,
 }
 
-#[function_component]
-pub fn Board(props: &BoardProps) -> Html {
-    if props.include_nav {
-        html! {
-            <div class="card container">
+#[derive(PartialEq)]
+pub struct AppList {
+    list: Vec<String>,
+    current_index: i32,
+}
 
-                // the navigation tab header
-                <h3>{ props.name }</h3>
-                <div class="card-header">
-                    <ul class="nav nav-tabs card-h  eader-tabs" role="tablist">
-                        <li class="nav-item" role="presentation">
-                            <a class="nav-link" id="home-tab" data-bs-toggle="tab" href="#all" role="tab" aria-controls="all" aria-selected="true">{"All OS"}</a>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <a class="nav-link" id="profile-tab" data-bs-toggle="tab" href="#windows" role="tab" aria-controls="windows" aria-selected="false">{"Windows"}</a>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <a class="nav-link" id="profile-tab" data-bs-toggle="tab" href="#mac" role="tab" aria-controls="mac" aria-selected="false">{"Mac"}</a>
-                        </li>
-                    </ul>
-                </div>
-
-                <div class="card-body">
-                    <div class="tab-content">
-                        <div class="tab-pane fade show active" id="all" role="tabpanel" aria-labelledby="all-tab">
-                        </div>
-                        <div class="tab-pane fade" id="windows" role="tabpanel" aria-labelledby="windows-tab">{""}</div>
-                        <div class="tab-pane fade" id="mac" role="tabpanel" aria-labelledby="mac-tab">{""}</div>
-                    </div>
-                </div>
-
-            </div>
-        }
-    } else {
-        html! {
-            <div class="card container">
-
-                // the navigation tab header
-                <h3>{ props.name }</h3>
-
-                <div class="card-body">
-
-                </div>
-            </div>
+impl Default for AppList {
+    fn default() -> Self {
+        Self {
+            list: vec![],
+            current_index: 0,
         }
     }
 }
 
+impl Reducible for AppList {
+    type Action = AppListActions;
+
+    fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
+        let next_state = match action {
+            AppListActions::Next => self.concatenate(),
+        };
+
+        Self {
+            list: next_state,
+            current_index: 0,
+        }.into()
+    }
+}
+
+impl AppList {
+    fn get_last_index(&self) -> usize {
+        self.list.len()
+    }
+
+    fn concatenate(&self) -> Vec<String> {
+        let mut current = self.list.clone();
+        let index = self.get_last_index();
+
+        for i in index + 1..index + 5 {
+            let name = i.to_string();
+            current.push(name);
+        }
+        current
+    }
+}
+
+
 #[derive(PartialEq, Properties)]
-pub struct BoardTabProps {
+pub struct BoardProps {
     pub name: &'static str,
 }
 
 #[function_component]
-pub fn BoardTab(props: &BoardTabProps) -> Html {
-    let mut do_nothing: String = String::from("#"); // adding a "#" before the href does not route.
-    do_nothing.push_str(props.name);
+pub fn Board(props: &BoardProps) -> Html {
+    let app_list = use_reducer(AppList::default);
+
+    let onclick = {
+        let app_list = app_list.clone();
+        Callback::from(move |_| app_list.dispatch(AppListActions::Next))
+    };
 
     html! {
-        <li class="nav-item" role="presentation">
-            <a class="nav-link" data-bs-toggle="tab" href={do_nothing} role="tab" aria-controls={props.name} aria-selected="true">{props.name}</a>
-        </li>
+        <>
+        <div class="card container mb-3">
+            // the navigation tab header
+            <h3>{ props.name }</h3>
+
+            <div class="card-body">
+            </div>
+        </div>
+
+        <div class="card container mb-3">
+            { for app_list.list.iter().map(|app| html! {
+                <Content name={ app.clone() } />
+            }) }
+        </div>
+
+        <div class="container">
+            <button {onclick} type="button" class="btn btn-outline-dark">{ "Next" }</button>
+        </div>
+        </>
     }
 }
 
 #[derive(PartialEq, Properties)]
 pub struct ContentProps {
-    pub name: &'static str,
+    pub name: String,
 }
 
 #[function_component]
@@ -90,9 +105,9 @@ pub fn Content (props: &ContentProps) -> Html {
                 </div>
                 <div class="col-7 col-sm-8">
                     <div class="card-body">
-                        <h5 class="card-title">{"Card title"}</h5>
-                        <p class="card-text">{"This is a wider card with supporting text below as a natural lead-in to additional content."}</p>
-                        <p class="card-text"><small class="text-muted">{"Last updated 3 mins ago"}</small></p>
+                        <h5 class="card-title">{ props.name.as_str() }</h5>
+                        <p class="card-text">{ "This is a wider card with supporting text below as a natural lead-in to additional content." }</p>
+                        <p class="card-text"><small class="text-muted">{ "Last updated 3 mins ago" }</small></p>
                     </div>
                 </div>
             </div>
