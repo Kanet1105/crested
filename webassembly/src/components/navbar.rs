@@ -1,6 +1,21 @@
 use yew::prelude::*;
 
 #[derive(PartialEq, Properties)]
+pub struct NavTabProps {
+    pub name: &'static str,
+    pub hlink: &'static str,
+}
+
+#[function_component]
+pub fn NavBarTab(props: &NavTabProps) -> Html {
+    html! {
+        <li class="nav-item">
+            <a class="nav-link" href={ props.hlink }>{ props.name }</a>
+        </li>
+    }
+}
+
+#[derive(PartialEq, Properties)]
 pub struct NavBarProps {
     pub name: &'static str,
     #[prop_or_default]
@@ -29,27 +44,10 @@ pub fn NavBar(props: &NavBarProps) -> Html {
 
                     // the login button
                     <form class="d-flex">
-                        <a class="btn btn-outline-light" href="/login">{"Log in"}</a>
+                        <a class="btn btn-outline-light" href="/login">{ "Log in" }</a>
                     </form>
-
                 </div>
-                
             </div>
         </nav>
-    }
-}
-
-#[derive(PartialEq, Properties)]
-pub struct NavTabProps {
-    pub name: &'static str,
-    pub hlink: &'static str,
-}
-
-#[function_component]
-pub fn NavBarTab(props: &NavTabProps) -> Html {
-    html! {
-        <li class="nav-item">
-            <a class="nav-link" href={props.hlink}>{props.name}</a>
-        </li>
     }
 }
