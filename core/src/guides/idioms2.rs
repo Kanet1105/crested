@@ -51,6 +51,68 @@
 ///     -> String type 으로 문자열 일부분를 다루기 위해서는 
 ///        my_name.as_bytes()  (&[u8] type)으로 변경해야 한다. (https://rinthel.github.io/rust-lang-book-ko/ch04-03-slices.html)
 
+#[test]
+pub fn false_sharing() {
+    use std::sync::Arc;
+    use std::cell::UnsafeCell;
+    use std::thread;
+
+    
+
+    pub fn cache_line_sharing(arr: [i32; 128], pos: usize) -> (i32, i32) {    
+    
+        struct SyncWrapper(UnsafeCell<[i32; 128]>);
+        unsafe impl Sync for SyncWrapper {}
+    
+        assert_ne!(pos, 0);
+        let arr = Arc::new(SyncWrapper(UnsafeCell::new(arr)));
+        let handles: Vec<_> = (0..4)
+            .map(|thread_number| {
+                let arr = arr.clone();
+                let pos = thread_number * pos;
+                thread::spawn(move || unsafe {
+                    let p: *mut i32 = &mut (*arr.0.get())[pos];
+                    for _ in 0..1_000_000 {
+                        p.write_volatile(p.read_volatile().wrapping_add(3));
+                    }
+                })
+            })
+            .collect();
+    
+        for handle in handles {
+            handle.join().unwrap();
+        }
+    
+        let arr = unsafe { *arr.0.get() };
+        (arr[0], arr[1])
+    }
+    
+}
+
 /// 
 /// 
-pub fn eof() {}
+struct CloningLab {
+    subject: Vec<Box<&'static dyn Mammal>>,
+}
+
+trait Mammal {
+    fn walk(&self);
+    fn run(&self);
+}
+
+#[derive(Clone)]
+struct Cat {
+    meow_factor: u8,
+    purr_factor: u8,
+}
+
+impl Mammal for Cat {
+    fn walk(&self) {
+        println!("Cat::walk");
+    }
+
+    fn run(&self) {
+        println!("Cat::run");
+    }
+}
+

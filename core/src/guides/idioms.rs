@@ -275,6 +275,13 @@ fn example_11() {
 struct Finalizer {
     index: u8,
 }
+// destructor , drop, finalizer 를 사용하는 거의 의미는??? error 나 exception 에 대한 처리??
+// ?????? 사용자 정의 drop 이 실행되는 경우, 아래와 같은 경우 println! 만 실행되는 건가?
+// memory freeing 이 되는 걸까??? 아니면 애초에 메모리를 쓰지 않고 drop 된건가??
+// Because Drop::drop is used to clean up a value, 
+// it may be dangerous to use this value after the method has been called. 
+// As Drop::drop does not take ownership of its input, 
+// Rust prevents misuse by not allowing you to call Drop::drop directly.
 
 impl Drop for Finalizer {
     fn drop(&mut self) {
@@ -291,6 +298,10 @@ fn example_11_inner() {
 /// 굉장히 묵시적이고 알아채기 힘든 코드가 될 수 있기 때문에 디버깅 시 매우 까다로워질 수 있다. 만약 stack unwinding 시 
 /// panic 이 발생할 경우에는 destructor 를 추가적으로 실행시키지 않으며 이후에 좋은 선택지가 따로 없기 때문에 시스템
 /// 리소스들을 원치 않는 방치하게 될 수 있다.
+/// 
+/// The finalizer must be assigned into a variable, otherwise it will be destroyed immediately,
+///  rather than when it goes out of scope. 
+/// The variable name must start with _.
 
 /// 7. std::mem::{take(), replace()}
 /// 
@@ -368,8 +379,10 @@ fn example_14() {
 fn example_15() {
     // version 1
     let turing = Some("Turing");
+    let x = vec!["a", "c"];
     let mut logicians = vec!["Curry", "Kleene", "Markov"];
-    logicians.extend(turing);
+    logicians.extend(x);
+    println!("{:?}", &logicians);
 
     // version 2
     if let Some(turing_inner) = turing {
@@ -403,18 +416,21 @@ fn example_16() {
     };
 }
 
+#[test]
 fn example_16_alt() {
     use std::rc::Rc;
 
     let num1 = Rc::new(1);
     let num2 = Rc::new(2);
     let num3 = Rc::new(3);
+    println!("{:p}", &num1);
 
     let num2_cloned = num2.clone();
     let num3_borrowed = num3.as_ref();
     let closure = move || {
-        *num1 + *num2_cloned + *num3_borrowed;
+        *num1 + &num2_cloned + *num3_borrowed;
     };
+    println!("{:p}", &num2_cloned);
 }
 
 /// 장점으로는 example_16_alt() 보다 example_16() 을 쓰게 되면 복사된 데이터가 closure 정의와 같이 묶이게 되고 목적이
