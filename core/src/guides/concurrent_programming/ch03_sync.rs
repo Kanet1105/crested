@@ -1,65 +1,64 @@
 /// Rust 동기 처리 library
 
-// #[test]
-// fn getting_pointing_address() {
-//     let x = "hell";
-//     let y = x.to_owned();
-
-//     let x_addr = x.as_ptr() as usize;
-//     let y_addr = y.as_ptr() as usize;
-
-//     let x_addr_bytes: &[u8] = unsafe{std::slice::from_raw_parts(x_addr as *const u8, 10)};
-//     let y_addr_bytes: &[u8] = unsafe{std::slice::from_raw_parts(y_addr as *const u8, 10)};
-
-//     let x_raw: &'static str = std::str::from_utf8(x_addr_bytes).expect("valid UTF");
-//     let y_raw: &'static str = std::str::from_utf8(y_addr_bytes).expect("valid UTF");
-    
-//     println!("x: &x={:p}, x_addr={:p}, x_raw={:p}", &x, &x_addr, &x_raw);
-//     println!("x: &y={:p}, y_addr={:p}, y_raw={:p}", &y, &y_addr, &y_raw);
-// }
-
-
-// 3.8.1 Mutex
+/// 3.8.1 Mutex
 #[test]
 fn p122() {
     use std::sync::{Arc, Mutex};
     use std::thread;
-    use rand::random;
+    use rand::{random, thread_rng, Rng};
 
-    fn some_func(lock: Arc<Mutex<u64>>) {
-        loop {
+    fn some_func(th: &str, lock: Arc<Mutex<u64>>) {
+        let mut checker: u64 = 0;
+        
+        while checker <= 5000 {
             // lock 을 하지 않으면 Mutex type 내 value 참조 불가
             let mut val = lock.lock().unwrap();
-            *val += 1;
-            println!("{}", *val);
+            let added = thread_rng().gen::<u8>();       
+            *val += added as u64;       // 각 thread 가 각자 다르게 동작함을 보이기 위해 random 값으로 더함.
+            println!("{}: {}", th, *val);
+            checker = *val;
         }
     }
 
-    let lock0 = Arc::new(Mutex::new(random::<u8>()));
-    // Mutex 용 변수를 저장하는 thread 가 multithreading 접근에서 safe 하도록 Arc Mutex 스마트 포인터 생성 (초기값 0)
-
-    let lock0_addr = &lock0;
-    let lock0_bytes: &[u8] = unsafe{std::slice::from_raw_parts(&lock0 as *const u8, 10)};
-    let lock0_pointing_addr: &'static str = std::str::from_utf8(lock0_bytes).expect("valid UTF");
+    let lock0 = Arc::new(Mutex::new(random::<u8>() as u64));
+    // Mutex 용 변수를 저장하는 thread 가 multithreading 접근에서 safe 하도록 Arc Mutex 스마트 포인터 생
 
     // 참조 counter 가 증가될 뿐이며, value 에 대한 memcpy 가 발생하지 않음.
     let lock1 = lock0.clone();
     
-    println!("lock 0: (pointer location: {:p}, raw pointer address: {:p}, value :{:?})", &lock0, &*lock0 as *const u32, *lock0);
-    println!("lock 1: (pointer location: {:p}, raw pointer address: {:p}, value :{:?})", &lock1, &*lock1 as *const u32, *lock1);
-    // 동일한 value location 을 가리킴.
+    let c_lock0 = lock0.clone();
+    let c_lock1 = lock1.clone();        
+    { // cf. lock1 은 lock0 의 clone 인데.. value 의 copy 인가? pionter 의 추가인가?              
+        println!("c_lock0 : location {:p}, value: {:?}", c_lock0, c_lock0); // c_lock0 : location 0x24564891e60, value: Mutex { data: 132, poisoned: false, .. }
+        println!("c_lock1 : location {:p}, value: {:?}", c_lock1, c_lock1); // c_lock1 : location 0x24564891e60, value: Mutex { data: 132, poisoned: false, .. }
+    } // -> clone 을 해도 memcpy 가 발생하지 않고, 단순히 해당 value 를 가리키는 pointer 만 추가됨.
     
+    // 책에서도 내용은 클론되지 않는다고 나와 있다.
+    // 아울러, 위의 println! 문에서도 동일 변수의 원형을 반복해서 썼는데도 에러 없이 실행된다. 
+    // rust 에서 일반적 high-level model type 의 경우, ownership 때문에 이는 불가능 하다. 
+    // 만약 GC 만 고려한다면, 스마트 포인터는 자체적으로 clone 된 variables 에 대해 counting 해서 관리하므로,
+    // value 을 mutable 할 권한을 ownership 과 묶어 놓지 않아도 문제 없이 동작 할수 있을것으로 보인다. 
+    // 그러나 이에 따른 다른 문제가 없는지... 잘 모르겠다.  
 
+    // thread 생성 
+    // closure 내로 onwership 이동
+    let th0 = thread::spawn(move || {
+        some_func("th0", lock0);
+    });
 
+    let th1 = thread::spawn(move|| {
+        some_func("th1", lock1);
+    });
+
+    th0.join().unwrap();
+    th1.join().unwrap();
 }
-
-
  
-// 3.8.2 조건 변수 Condvar
-// 조건 변수 : (p105) 어떤 조건을 만족하지 않는 동안에는 프로세스를 대기상태로 두고
-//             조건이 만족되면 대기중인 프로세스를 실행. 
-//             -> "대기" 의 의미 
-//                 .. it consumes no CPU time while waiting for an event to occur. 
+/// 3.8.2 조건 변수 Condvar (1)
+/// 조건 변수 : (p105) 어떤 조건을 만족하지 않는 동안에는 프로세스를 대기상태로 두고
+///             조건이 만족되면 대기중인 프로세스를 실행. 
+///             -> "대기" 의 의미 
+///                 .. it consumes no CPU time while waiting for an event to occur. 
 #[test]
 fn p124 () {
     use std::sync::{Arc, Mutex, Condvar};
@@ -95,6 +94,7 @@ fn p124 () {
 
     // condvar 이 false 로 최초 설정되어 있으므로, c0 과 c1 은 p 가 실행되어
     // condvar 을 true 로 바꿔주기 전까지 대기한다. 
+    // 따라서 p 가 완료되고 나서, c0, c1 (순서에 관계없이) 완료된다.
     let c0 = thread::spawn(move || {child(0, pair0)});
     let c1 = thread::spawn(move || {child(1, pair1)});
     let p = thread::spawn(move || {parent(pair2)});
@@ -103,6 +103,18 @@ fn p124 () {
     c1.join().unwrap();
     p.join().unwrap();
 
+}
+
+/// 3.8.2 조건 변수 Condvar - timeout (2)
+/// 위 예제에서 parent 작업이 끝날때까지 wait 하는 것을 일정 시간으로 한정할 경우
+#[test]
+fn p124plus () {
+    use std::sync::{Arc, Mutex, Condvar};
+    use std::thread;
+
+    fn t_child(id: u64, p:Acr<Mutex<bool>, Condvar>) {
+        let &
+    }
 }
 
 #[test]
@@ -162,7 +174,7 @@ fn p127() {
     } 
 }
 
-// 3.8.5 semaphore (Rust 에서 표준으로 제공하고 있지 않으므로 해당 자료 구조 구성)
+/// 3.8.5 semaphore (Rust 에서 표준으로 제공하고 있지 않으므로 해당 자료 구조 구성)
 #[test]
 fn p128() {
     use std::sync::{Condvar, Mutex};
@@ -248,31 +260,9 @@ fn p128() {
 }
 
 
-//-------------------------------------------------------------
+///-------------------------------------------------------------
 fn main() {
     println!("Hello, world!");
 }
 
 
-
-fn main() {
-    let x = "hell".to_string();
-    let y = &x;
-    let z = x.clone();
-
-    let x_addr = x.as_ptr() as usize;
-    let y_addr = y.as_ptr() as usize;
-    let z_addr = z.as_ptr() as usize;
-
-    let x_addr_bytes: &[u8] = unsafe{std::slice::from_raw_parts(x_addr as *const u8, 10)};
-    let y_addr_bytes: &[u8] = unsafe{std::slice::from_raw_parts(y_addr as *const u8, 10)};
-    let z_addr_bytes: &[u8] = unsafe{std::slice::from_raw_parts(z_addr as *const u8, 10)};
-
-    let x_raw: &'static str = std::str::from_utf8(x_addr_bytes).expect("valid UTF");
-    let y_raw: &'static str = std::str::from_utf8(y_addr_bytes).expect("valid UTF");
-    let z_raw: &'static str = std::str::from_utf8(z_addr_bytes).expect("valid UTF");
-    
-    println!("x: &x={:p}, x_addr={:p}, x_raw={:p}", &x, &x_addr, &x_raw);
-    println!("y: &y={:p}, y_addr={:p}, y_raw={:p}", &y, &y_addr, &y_raw);
-    println!("z: &z={:p}, z_addr={:p}, z_raw={:p}", &z, &z_addr, &z_raw);
-}
