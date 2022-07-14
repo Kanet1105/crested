@@ -1,7 +1,74 @@
+/// 01. & vs ref
 
-/// 01. raw pointer 확인. (작업중...)
-#[test] 
+/// &
+/// & denotes that your pattern expects a reference to an object.                                    
+/// & is a part of said pattern: &Foo matches different objects than Foo does.
+/// & destructures a borrow, lets you reach through a borrow
+/// -> "let &x = sth" 은 곧 "sth 이 가리키는 곳의 value 를 x로 선언" 
+/// -> sth 은 pointer 형 (&value) 이어야 한다. 
+///      * let &x = value -> 사용불가
+///      * let x = value or let &x = &value 로 사용해야 
+///                         -> 이 경우 결국 x = value 임.
+  
+/// ref
+/// ref indicates that you want a reference to an unpacked value. 
+/// It is not matched against: Foo(ref foo) matches the same objects as Foo(foo).
+/// ref binds to a location by-reference rather than by-value
+/// ref says “take a borrow to this place within the thing I’m matching”.
+/// -> "let ref x = sth"  은 "sth 을 가리키는 pointer x 를 선언"
+///      * let x = ref .. -> 사용 불가. 
+///      * let ref x = value (or pointer) -> Ok
+///        -> x 자체가 우변type 에 참조형(&이 붙는) type 이 됨. 
+
+#[test]
 fn tips01() {
+
+    fn print_type_name_of<T>(_: T) {
+        println!("{}", std::any::type_name::<T>());
+    }
+
+    let x = &false;  
+    print_type_name_of(x);  // &bool
+
+    let &x = &false;  
+    print_type_name_of(x);  // bool
+
+    // let &x = false; -> error!!!
+    let x = &"qwe".to_owned();    // OK!!
+    let ref x = "abc".to_owned(); // OK!!
+    //let x = ref false; -> error!!
+
+    let ref x = &false; 
+    print_type_name_of(x);  // &&bool
+
+    let ref x = 1;
+    print_type_name_of(x);  // &i32
+
+    let x = &1;
+    print_type_name_of(x);  // &i32
+
+    let x = "abc".to_string();
+    print_type_name_of(&x);     // &alloc::string::String
+    print_type_name_of(x);      // alloc::string::String
+}
+
+
+
+/// 02. rust 에서의 matrix 표현
+#[test]
+fn tips02() {
+    let a = [3;4];  // [3, 3, 3, 3]
+    println!("{:?}", &a);
+
+    let b = [[3;4];5]; // [[3, 3, 3, 3], [3, 3, 3, 3], [3, 3, 3, 3], [3, 3, 3, 3], [3, 3, 3, 3]]
+    println!("{:?}", &b);
+}
+
+
+
+/// 03. raw pointer 확인 (간단하지만 정리하는겸...)
+#[test] 
+fn tips03() {
     // 1. variable 이 reference type 의 value 에 대응되는 경우. 
     let str1 = "hi!";
     let str2 = "rust";
@@ -29,47 +96,8 @@ fn tips01() {
     // 간단하게 참조형으로 해당 value 가 저장된 memory 위치를 확인 할 수 있다. 
 
     // 3. High-level model type 에 대한 vaule 가 저장된 memeory address 확인
-    let s1 = "hell".to_string();
-    let s2 = "rust".to_string();
-    let s3 = "world".to_string();
+    //    -> .. 모르겠다..;;;;
 
-    let ss1 = &s1;
-    let ss2 = &s2;
-    let ss3 = &s3;
-
-    println!("{:p}\t{:p}\t{:p}", &s1, &s2, &s3); // 0xdb64afef38    0xdb64afef50    0xdb64afef68
-    // low-level 과 동일한 방법으로 address 를 확인하고자 하면, 출력은 되지만, 각 pointer 의 차이를 확인해보면,
-    // 이는 value 에 길이와 무관하게 24bytes, value 의 location, length, capacity 정보를 포함한 pointer 가 들어있기 때문이다. 
-
-
-    println!("{:p}\t{:p}\t{:p}", s1.as_ptr(), s2.as_ptr(), s3.as_ptr());
-    // println!("{:p}\t{:p}\t{:p}", ref s1.as_bytes(), ref s2.as_bytes(), ref s3.as_bytes());
-    // as_ptr() 은 string slice 를  pointer 로 만들어 준다는데... string 에 대해서도 통할까?
-
-    let aa = std::sync::Arc::new(std::sync::Mutex::new(0));
-    println!("{:p}", aa);
-
-
-    // let y = &x;
-    // let z = x.clone();
-
-    // let x_addr = x.as_ptr() as usize;
-    // let y_addr = y.as_ptr() as usize;
-    // let z_addr = z.as_ptr() as usize;
-
-    // let a = (x_addr + 1);
-
-    // let x_addr_bytes: &[u8] = unsafe{std::slice::from_raw_parts(x_addr as *const u8, 10)};
-    // let y_addr_bytes: &[u8] = unsafe{std::slice::from_raw_parts(y_addr as *const u8, 10)};
-    // let z_addr_bytes: &[u8] = unsafe{std::slice::from_raw_parts(z_addr as *const u8, 10)};
-
-    // let x_raw: &'static str = std::str::from_utf8(x_addr_bytes).expect("valid UTF");
-    // let y_raw: &'static str = std::str::from_utf8(y_addr_bytes).expect("valid UTF");
-    // let z_raw: &'static str = std::str::from_utf8(z_addr_bytes).expect("valid UTF");
-    
-    // println!("x: &x={:p}, x_addr={:p}, x_raw={:p}", &x, &x_addr, &x_raw);
-    // println!("y: &y={:p}, y_addr={:p}, y_raw={:p}", &y, &y_addr, &y_raw);
-    // println!("z: &z={:p}, z_addr={:p}, z_raw={:p}", &z, &z_addr, &z_raw);
 }
 
 
