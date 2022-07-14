@@ -5,10 +5,11 @@
 /// & is a part of said pattern: &Foo matches different objects than Foo does.
 /// & destructures a borrow, lets you reach through a borrow
 /// -> "let &x = sth" 은 곧 "sth 이 가리키는 곳의 value 를 x로 선언" 
-/// -> sth 은 pointer 형 (&value) 이어야 한다. 
+/// -> sth 은 pointer 형 (&value) 이어야 한다. (value 가 pointer type 이 아닌경우)
 ///      * let &x = value -> 사용불가
 ///      * let x = value or let &x = &value 로 사용해야 
-///                         -> 이 경우 결국 x = value 임.
+///        -> &x 는 pointer 형 또는 &vaule 에만 사용가능하며, 
+///           x 는 pointer 아닌 value 를 의미하게 된다.(mutability, ownership 개념은 별개)
   
 /// ref
 /// ref indicates that you want a reference to an unpacked value. 
@@ -17,8 +18,9 @@
 /// ref says “take a borrow to this place within the thing I’m matching”.
 /// -> "let ref x = sth"  은 "sth 을 가리키는 pointer x 를 선언"
 ///      * let x = ref .. -> 사용 불가. 
-///      * let ref x = value (or pointer) -> Ok
-///        -> x 자체가 우변type 에 참조형(&이 붙는) type 이 됨. 
+///      * let ref x = value  -> Ok
+///      * let ref x = &value -> Ok (&&)
+///        -> x 자체가 우변type 에 참조형/pointer type 이 됨. 
 
 #[test]
 fn tips01() {
