@@ -54,6 +54,12 @@ fn p122() {
     th1.join().unwrap();
 }
  
+/// 기본적인 critical session 에서의 lock algorithm 은 이미 lock 걸려 있는 data 에 접근할때,
+/// 사용권한을 얻을때까지 무한 loop 형태로 시도하게 된다. 
+/// 이렇게 resource 가 비는 것을 polling 으로 확인하는 방법을 spinlock 라고 한다. 
+/// 그런나 해당 구조는 의미없는 cpu 작업이 발생한다. 
+/// polling 에 대한 load 를 줄일 수는 없을까?
+
 /// 3.8.2 조건 변수 Condvar (1)
 /// 조건 변수 : (p105) 어떤 조건을 만족하지 않는 동안에는 프로세스를 대기상태로 두고
 ///             조건이 만족되면 대기중인 프로세스를 실행. 
@@ -65,8 +71,8 @@ fn p124 () {
     use std::thread;
 
     fn child (id: u64, p: Arc<(Mutex<bool>, Condvar)>) {
-        let &(ref lock, ref cvar) = &*p;
-
+        let &( ref lock, ref cvar) = &*p;   // p 의 ownership 을 유지 해야 하므로 ref 사용
+                                                                    // ref keyword : tips03 참조
         // Mutex lock 실행
         let mut started = lock.lock().unwrap();
         while !*started {   // Mutex 안의 공유 변수가 false 인 동안 루프 
@@ -105,17 +111,55 @@ fn p124 () {
 
 }
 
-/// 3.8.2 조건 변수 Condvar - timeout (2)
+/// 3.8.2 조건 변수 Condvar - timeout 
 /// 위 예제에서 parent 작업이 끝날때까지 wait 하는 것을 일정 시간으로 한정할 경우
 #[test]
 fn p124plus () {
     use std::sync::{Arc, Mutex, Condvar};
-    use std::thread;
+    use std::{thread, time};
 
-    fn t_child(id: u64, p:Acr<Mutex<bool>, Condvar>) {
-        let &
+    fn t_child(wait_id: u64, p:Arc<(Mutex<bool>, Condvar)>) {
+        let &(ref lock, ref cvar) = &*p;
+        let mut started = lock.lock().unwrap();
+
+        cvar.wait_timeout(started, time::Duration::from_millis(wait_id)).unwrap();
+
+        println!("t_child {}", wait_id);
     }
+
+    fn t_parent(p: Arc<(Mutex<bool>, Condvar)>) {
+        let &(ref lock, ref cvar) = &*p;
+
+        let mut started = lock.lock().unwrap();
+        *started = true;
+        cvar.notify_all();
+
+        println!("parent");
+    } 
+
+    let pair00= Arc::new((Mutex::new(false), Condvar::new()));
+    let pair10 = pair00.clone();
+    let pair50 = pair00.clone();
+
+    let c50 = thread::spawn(move || {t_child(5000, pair50)});
+    let c10 = thread::spawn(move || {t_child(1000, pair10)});
+    
+    thread::sleep(time::Duration::from_millis(2000));
+    
+    let p = thread::spawn(move || {t_parent(pair00)});
+
+    c50.join().unwrap();
+    c10.join().unwrap();
+    p.join().unwrap();
+    // 작업의 실행 순서 : t_child 5000 -> t_child 2000 -> sleep(2 s) -> parent
+    // 작업의 출력 순서 : t_child 1000 -> parent -> t_child 5000  (전체 실행 시간 2.03s)
+    // 1. 두 t_child 는 우선 parent 를 기다린다.
+    // 2. wait_timeout 이 1초로 설정된 t_child 1000 는 parent 가 오기전에 시간이 다 경과했으므로 작업을 진행한다.
+    // 3. 2초가 지나면 parent 가 실행된다.
+    // 4. parent 가 condvar 을 true 로 변경하였으므로, t_child 5000 은 parent 가 끝나고 바로 실행된다.  
 }
+
+
 
 #[test]
 fn p126() {
