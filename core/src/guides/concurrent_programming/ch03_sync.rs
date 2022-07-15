@@ -60,7 +60,7 @@ fn p122() {
 /// 그런나 해당 구조는 의미없는 cpu 작업이 발생한다. 
 /// polling 에 대한 load 를 줄일 수는 없을까?
 
-/// 3.8.2 조건 변수 Condvar (1)
+/// 3.8.2 조건 변수(condition variable) Condvar (1)
 /// 조건 변수 : (p105) 어떤 조건을 만족하지 않는 동안에는 프로세스를 대기상태로 두고
 ///             조건이 만족되면 대기중인 프로세스를 실행. 
 ///             -> "대기" 의 의미 
@@ -111,7 +111,7 @@ fn p124 () {
 
 }
 
-/// 3.8.2 조건 변수 Condvar - timeout 
+/// 3.8.2 조건 변수(condition variable) Condvar - timeout 
 /// 위 예제에서 parent 작업이 끝날때까지 wait 하는 것을 일정 시간으로 한정할 경우
 #[test]
 fn p124plus () {
@@ -122,7 +122,7 @@ fn p124plus () {
         let &(ref lock, ref cvar) = &*p;
         let mut started = lock.lock().unwrap();
 
-        cvar.wait_timeout(started, time::Duration::from_millis(wait_id)).unwrap();
+        cvar.wait_timeout(started, time::Duration::from_secs(wait_id)).unwrap();
 
         println!("t_child {}", wait_id);
     }
@@ -137,19 +137,19 @@ fn p124plus () {
         println!("parent");
     } 
 
-    let pair00= Arc::new((Mutex::new(false), Condvar::new()));
-    let pair10 = pair00.clone();
-    let pair50 = pair00.clone();
+    let pair0= Arc::new((Mutex::new(false), Condvar::new()));
+    let pair1 = pair0.clone();
+    let pair5 = pair0.clone();
 
-    let c50 = thread::spawn(move || {t_child(5000, pair50)});
-    let c10 = thread::spawn(move || {t_child(1000, pair10)});
+    let c5 = thread::spawn(move || {t_child(5, pair5)});
+    let c1 = thread::spawn(move || {t_child(1, pair1)});
     
-    thread::sleep(time::Duration::from_millis(2000));
+    thread::sleep(time::Duration::from_secs(2));
     
-    let p = thread::spawn(move || {t_parent(pair00)});
+    let p = thread::spawn(move || {t_parent(pair0)});
 
-    c50.join().unwrap();
-    c10.join().unwrap();
+    c5.join().unwrap();
+    c1.join().unwrap();
     p.join().unwrap();
     // 작업의 실행 순서 : t_child 5000 -> t_child 2000 -> sleep(2 s) -> parent
     // 작업의 출력 순서 : t_child 1000 -> parent -> t_child 5000  (전체 실행 시간 2.03s)
@@ -159,27 +159,40 @@ fn p124plus () {
     // 4. parent 가 condvar 을 true 로 변경하였으므로, t_child 5000 은 parent 가 끝나고 바로 실행된다.  
 }
 
-
-
+/// 지금까지 읽기, 쓰기 작업은 모두 lock 권한을 얻어야 작업이 가능하다. 
+/// 그런데 일반적으로 lock 필요한 이유는 쓰기 때문이다. (읽기에 lock 이 필요한 경우는... 모르겠음;;)
+/// 그렇다면 쓰기 작업에만 lock 권한을 받도록 하는 것이 좀더 효율적이지 않을까?
+/// 그래서...
+/// 3.8.3 RwLock
 #[test]
 fn p126() {
     use std::sync::RwLock;
 
     let lock = RwLock::new(10);
     {
-        let v1 = lock.read().unwrap();
-        let v2 = lock.read().unwrap();
-        println!("v1 = {}", v1);
-        println!("v2 = {}", v2);
+        let r1 = lock.read().unwrap();
+        let r2 = lock.read().unwrap();
+        // value 를 immutable reference 로 사용하기 위해 접근하는 경우, RwLockReadGuard 로 참조 가능하며
+        // 이때는 shared reference 사용하듯이 동일 scope 내에서 여러번 사용 가능하며, 
+        // scope 을 벗어나면 자동으로 readlock 에 해제된다.
+        println!("r1 = {}", r1);
+        println!("r2 = {}", r2);
     }
     {
-        let mut v = lock.write().unwrap();
-        *v = 7;
-        println!("v = {}", v);
+        let mut w1 = lock.write().unwrap();
+        // let mut w2 = lock.write().unwrap(); // readlock 과 달리, 해당 code 추가시, copile 은 되지만, 실행시 starvation 현상이 나타난다.
+        *w1 = 7;
+        println!("w1 = {}", w1);
     }
 }
 
-// 3.8.4 Barrier sync
+/// 3.8.4 Barrier synchronization
+/// thread 간 공유 counter가 있고, theads 의 작업이 일정 지점에 도착한 thread를 counting 한다.
+/// counter 가 설정한 값에 도달하면 barrier 를 풀고 현재까지 모인 thread 들이 다음 단계 작업이 가능하도록 해준다.
+/// 
+/// ex. 만약 영상처리에서 하나의 frame 을 여러 thread 에서 처리하고 이를 모아서 결과값을 출력해야 한다면,
+///     각 thread 끼리 동일한 시간에 처리되는 것을 보장할 수 없기 때문에,
+///     하나의 frame 을 처리한 thread 들 중 가장 늦게 처리된 thread 를 기다렸다가 다음 단계 작업을 진행해야 한다.
 #[test]
 fn p127() {
     use std::sync::{Arc, Barrier};
@@ -187,43 +200,48 @@ fn p127() {
 
     let one_ms = time::Duration::from_millis(1);
 
-    // thread handler 를 저장하는 Vec
-    // 나중 join 을 수행하기 위해 thread handler 를 보존하는 Vec 을 정의
-    // 해당 Vec type 은 동적 배열 객체를 다루는 데이터 컨테이너 이다. 
     let mut v = Vec::new();
+    // 다수의 threads 을 나중에 join 을 수행하기 번거로우므로 필요한 작업이 왼료한 thread 는
+    // 해당 Vec 에 push 해 놓고, 나중에 for 문으로 join() 처리 하기 위해 생성
 
-    // 10 threads 만큼의 barrier sync 를 Arc 로 감쌈.
+    // 생성한 thread 들을 barrier sync 를 3개씩 끊어서 처리하고자 함. 
     let barrier = Arc::new(Barrier::new(3));
 
-    // 10 threads 실행
-    for _ in 0..12 {
+    // 12개 threads 실행
+    // 만약 10개로 설정하면 3개씩 barrier 가 걸리므로 마지막 1개는 barrier 가 걸린 상태에서 pending 됨.
+    for i in 0..12 {
         let b = barrier.clone();
         let th = thread::spawn(move || {
-            // thread::sleep(one_ms); // option1
-            println!("before wait");        
-            b.wait();
-            println!("finished barrier");
+            println!("th{} before wait", &i);        
+            b.wait();                 // 여기에서 barrier 걸려서 대기함.
+            println!("th{} finished barrier", &i);
         });
         v.push(th);
-        println!("{:?}", v);
-        thread::sleep(one_ms); // option0
+
+        thread::sleep(one_ms); // 3개씩 barrier 처리를 명확하게 보여주기 위해
     }
     //                    v--------------- 반복 ---------------ㄱ
     //  main thd  : thread spawn -> v.push(th) -> print v  -> sleep  
     //                    L->  print "before wait" -> wait (3개가 쌓일때까지..)
-    //                                                   ㄴ-> print "finished.." (3개한꺼번에) -> join                                
+    //                                                   ㄴ-> print "finished.." (3개 각각 thread 잔여작업 실행) -> join                                
 
     for th in v {
         th.join().unwrap();
     } 
 }
 
-/// 3.8.5 semaphore (Rust 에서 표준으로 제공하고 있지 않으므로 해당 자료 구조 구성)
+/// 3.8.5 semaphore (Rust 에서 표준으로 제공하고 있지 않으므로 자료 구조 작성해야)
+/// (아마도 Rust 는 mutability / ownership 를 추가로 고려 해야 하므로, Rc / RefCell 이 대신 사용되는듯?? )
+/// 
+///  semaphore  자료 구조의 개념.
+/// 동시에 작업이 가능한 최대 숫자를 먼저 설정하고, 해당 자원 사용을 요청할 때마다, counter 를 올린다.
+/// 만약 counter 가 최대 숫자과 같아진 상태에서, 추가 요청이 온다면 해당 요청은 wait 하고,
+/// 다른 작업이 완료 counter 가 max 값보다 작아졌을 때, wait 하고 있는 thread 에 작업을 진행, counter 를 올린다.  
 #[test]
 fn p128() {
     use std::sync::{Condvar, Mutex};
 
-    // 세마포어용 타입
+    // 세마포어용 타입 (기존 Condvar 구조에 max 추가)
     pub struct Semaphore {
         mutex: Mutex<isize>,
         cond: Condvar,
@@ -239,10 +257,9 @@ fn p128() {
             }
         }
 
-        pub fn wait(&self) {
-            
+        pub fn wait(&self) { 
             let mut cnt = self.mutex.lock().unwrap();
-            while *cnt >= self.max {    // 카운터가 최댓값 이상이면 대기
+            while *cnt >= self.max {    // 카운터가 최댓값 이상이면 wait
                 cnt = self.cond.wait(cnt).unwrap();
             }
             *cnt += 1;  // 접근하여 lock 을 한 process 의 숫자 count
@@ -252,13 +269,13 @@ fn p128() {
             // 카운터 감소
             let mut cnt = self.mutex.lock().unwrap();
             *cnt -= 1;
-            if *cnt <= self.max {   //  최댓값 이하로 counter 가 떨어졌을 때, 대기중인 process 중 하나 wake up d알림
-                self.cond.notify_one();
+            if *cnt <= self.max {       // 최댓값 이하로 counter 가 떨어졌을 때, 
+                self.cond.notify_one(); // 대기중인 threads 중 하나만 wake up 알림
             }
         }
     }
 
-    // 위에서 작성한 semaphore test code
+    // 위에서 작성한 semaphore 자료구조 test code
     use std::sync::atomic::{AtomicUsize, Ordering}; // memory ordering : https://int-i.github.io/rust/2022-01-15/memory-ordering/
     use std::sync::Arc;
 
@@ -266,11 +283,9 @@ fn p128() {
     const NUM_THREADS: usize = 8;
     const SEM_NUM: isize = 4;
 
-    static mut CNT: AtomicUsize = AtomicUsize::new(0);
+    static mut CNT: AtomicUsize = AtomicUsize::new(0); // AtomicUsize : threads 간 공유해도 safe 한 usize ?? tips04 참조
 
-    ma();
-
-    fn ma() {
+    {
         let mut v = Vec::new();
         //SEM_NUM 만큼 동시 실행 가능한 semaphore
         let sem = Arc::new(Semaphore::new(SEM_NUM));

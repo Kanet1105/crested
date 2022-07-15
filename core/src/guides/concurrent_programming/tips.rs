@@ -100,6 +100,78 @@ fn tips03() {
     // 3. High-level model type 에 대한 vaule 가 저장된 memeory address 확인
     //    -> .. 모르겠다..;;;;
 
+    // 4. smart pointer 
+    // (모든 스마트 포인터가 동일하게 적용 가능한지 모르겠지만..)
+    // ch03_sync.rs mutex 예제를 보면, memory freeing 을 위해, ownership 을 관리할 필요가 없어지므로,
+    // clone 하게 되면, 동일 위치(value?)를 가리키는 pointer 가 생성된다. 
+}
+
+/// 04. atomic types 
+/// (아직 모)
+/// 
+/// 05. ordering (Acquire-Release)
+/// (참고 : https://doc.rust-lang.org/nomicon/atomics.html?highlight=atomic%20usize#atomics)
+/// foundation2.rs 에서 언급한 atomic 에서 같이, 하나의 value 에 여러 thread 가 작업을 했을 때,
+/// 그 결과값을 보장할 수 없는 경우가 발생한다. 따라서 해당 연산에 대해 atomic 처리가 보장되어야 한다.
+/// 그러나 foundation2.rs 에서도 의문점이 있었듯이, x86 compiler 의 read-modify-write atomic 처리 만으로
+/// shared value 의 연산 결과를 보장할 수 없다. 
+/// 해당 설명에서 ordering 에 대한 설명이 제대로 되어 있지 않기 때문이다. 
+/// 
+///     initial state: x = 0, y = 1
+///     THREAD 1        THREAD2
+///     y = 3;          if x == 1 {
+///     x = 1;              y *= 2;
+///                     }
+/// 
+///     위의 경우, y 의 결과 값은 아래 3가지 시나리오에 의해 다르게 결정될수 있다.
+///     a. y = 3 : thread2 가 먼저 작업이 완료된 이후, thread1 의 내용이 마지막에 메모리에 씀.
+///     b. y = 6 : thread1 가 value 를 update 한 이후, thread2 가 update
+///     c. y = 2 : thread2 (read) - thread1(read and write) - thread2(write) 한 경우
+///
+/// a. b. 는 문제라기보다는 process 간 어떻게 인과관계를 설정하는가에 따라 최종 결과가 바뀔 수 있음을 보여주는 case 이다. 
+/// c. case 로 문제를 한정해도, read-modify-write atomic 처리만으로 해결할 수 없다. 
+/// 이를 해결하기 위해 (앞에서 설명이 부족했던) ordering 이 필요하다.
+/// 
+/// * Acquire-Release     
+/// 우선 code 작성자가 의도한 정답이 y = 6 (thread1 완료 후 thread2 작업) 이라고 가정하자
+/// thread1 작업을 통해 y = 3, x = 1 의 결과를 얻었다면, 이를 memory 에 덮어쓰기 전에 
+/// 누군가 (thread2) 가 동일 memory 에 작업을 했다면 기존 값이 변경되어 있을 것이다. 
+/// 따라서, thread1 은 가져와서 (thread1 resister 에) 저장되어 있는 값이 memory 값과 일치하는지 먼저 비교하고
+/// 일치하면 그때 memory 값을 thread1 가 연산한 결과값으로 바꾸어 놓는다. 
+/// 이를 Compare and Swap (CAS) 라고 한다. 
+/// 
+/// 이를 x86-64 complie 로 작성하면
+/// 
+///     cmpq %rsi, (%rdi)   ; %rsi == (%rdi)                     // rsi register 의 값과 rdi register 가 가리키는 메모리 상의 값을 비교하여 ZF flag 에 저장
+///     jne LBB0_1          ; if %rsi != (%rdi) then goto LBB0_1 // 비교결과 (ZF flag 검사) 가 같지 않으면 LBB0_1 라벨로 점프
+///     movq %rdx, (%rdi)   ; (%rdi) = %rdx     // (LBB0_1 로 점프하지 않았다면) 결과값 rdx 을 rdi register 가 가리키는 메모리에 입력
+///     movl $1, %eax       ; %eax = 1          // 그리고 1 (true) 
+///     retq                ;                   // 을 반환  
+///  LBB0_1:
+///     xorl %eax, %eax     ; %eax = 0          // (불일치로 해당 라베롤 점프해왔으므로) 0(false) 을
+///     retq                ;                   // 을 반환             
+///
+/// 해당 과정의 process 를 ordering 하는 방법이 Acquire-Release 이다. 
+/// (아마도 단의의 의미대로 (메모리를 확인하여 결과 값을 넣을 수 있는 상황을) acquire 하고 결과값 memory 에 release) 
+/// 이를 참고 사이트 예제 그대로 rust code 로 구성하면, (https://doc.rust-lang.org/nomicon/atomics.html?highlight=atomic%20usize#atomics)
+
+fn tips04() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::thread;
+
+    let lock = Arc::new(AtomicBool::new(false)); // value answers "am I locked?"
+
+    // ... distribute lock to threads somehow ...
+
+    // Try to acquire the lock by setting it to true
+    while lock.compare_and_swap(false, true, Ordering::Acquire) { } // deprecated / compare_exchange 나 compare_exchage_weak 으로 사용해야
+    // broke out of the loop, so we successfully acquired the lock!
+
+    // ... scary data accesses ...
+
+    // ok we're done, release the lock
+    lock.store(false, Ordering::Release);
 }
 
 
