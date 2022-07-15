@@ -107,9 +107,9 @@ pub fn ex_cell() {
 ///                     }
 /// 
 ///     위의 경우, y 의 결과 값은 아래 3가지 시나리오에 의해 다르게 결정될수 있다.
-///     - y = 3 : thread2 가 먼저 작업이 완료된 이후, thread1 의 내용이 마지막에 메모리에 씀.
-///     - y = 6 : thread1 가 value 를 update 한 이후, thread2 가 update
-///     - y = 2 : thread2 (read) - thread1(read and write) - thread2(write) 한 경우
+///     a. y = 3 : thread2 가 먼저 작업이 완료된 이후, thread1 의 내용이 마지막에 메모리에 씀.
+///     b. y = 6 : thread1 가 value 를 update 한 이후, thread2 가 update
+///     c. y = 2 : thread2 (read) - thread1(read and write) - thread2(write) 한 경우
 /// 
 ///     해결 방법 (참고: https://doc.rust-lang.org/nomicon/atomics.html?highlight=atomic#atomics, https://modoocode.com/271)
 ///     1. Stronly-rrdered Memory : 한 프로세스에서 memory write 을 하면, 모든 프로세스에 즉시 알림.
@@ -122,7 +122,7 @@ pub fn ex_cell() {
 ///     3. Non-Strict Consistency
 ///     - Sequential Consistency
 /// 
-///       * Ordering 유지
+///       * Ordering 유지 
 ///       * Atomic read/write operation
 ///
 ///       위 2가지 조건을 충족하는 구조를 구성해보면,
@@ -136,7 +136,7 @@ pub fn ex_cell() {
 ///     - Relaxed Consistency
 ///       memory 접근을 queue 를 통해야 한다는 의미는, 곧 병목 구간이 형성될 수 있음을 의미한다.
 ///       
-///      'ordering' 에 대한 대안으로,
+///      'ordering' 에 대한 대안으로, (추가 설명 : concurrent_programming/tips.rs 04 번 참조)
 ///       * write to read : previous write 가 끝나기 전에 read 가 수행될수 있다.
 ///       * write to write : previous write 가 끝나기 전에 write 이 수행될 수 있다.
 ///       * read to read or write : previous read 가 끝나기 전에 read 또는 write 이 수행될 수 있다.
@@ -283,7 +283,7 @@ pub fn ex_cell() {
 /// 
 /// ---------------------------------------------------------------------------
 
-
+                    
 fn main() {
     println!("Hello, world!");
 }
