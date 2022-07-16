@@ -237,9 +237,18 @@ fn p127() {
 /// 동시에 작업이 가능한 최대 숫자를 먼저 설정하고, 해당 자원 사용을 요청할 때마다, counter 를 올린다.
 /// 만약 counter 가 최대 숫자과 같아진 상태에서, 추가 요청이 온다면 해당 요청은 wait 하고,
 /// 다른 작업이 완료 counter 가 max 값보다 작아졌을 때, wait 하고 있는 thread 에 작업을 진행, counter 를 올린다.  
+///
+/// 다음 test 예제
+/// 1. semaphore 자료구조를 작성하고,
+/// 2. 이를 test code 로 작동 여부를 확인한 후 (현재 주석처리로 비활성화 상태)
+/// 3. 이를 활용하여 thread channel 을 생성하여 
+/// 4. 동작을 확인
 #[test]
 fn p128() {
+    // 1. semaphore 자료구조를 작성
+
     use std::sync::{Condvar, Mutex};
+    use std::thread;
 
     // 세마포어용 타입 (기존 Condvar 구조에 max 추가)
     pub struct Semaphore {
@@ -274,49 +283,160 @@ fn p128() {
             }
         }
     }
+    // -------------------------------------------------------------------
 
-    // 위에서 작성한 semaphore 자료구조 test code
-    use std::sync::atomic::{AtomicUsize, Ordering}; // memory ordering : https://int-i.github.io/rust/2022-01-15/memory-ordering/
+    // 2. 이를 test code 로 작동 여부를 확인 
+    // 뒤에 작성된 channel 이 아닌 semaphore 동작을 확인하고 싶을때 해당 코드 활성화
+
+    // test_code();
+
+    fn test_code() {
+        use std::sync::atomic::{AtomicUsize, Ordering}; // memory ordering : https://int-i.github.io/rust/2022-01-15/memory-ordering/
+        use std::sync::Arc;
+    
+        const NUM_LOOP: usize = 100_000;
+        const NUM_THREADS: usize = 8;
+        const SEM_NUM: isize = 4;
+    
+        static mut CNT: AtomicUsize = AtomicUsize::new(0); // AtomicUsize : threads 간 공유해도 safe 한 usize ?? 
+    
+        {
+            let mut v = Vec::new();
+            //SEM_NUM 만큼 동시 실행 가능한 semaphore
+            let sem = Arc::new(Semaphore::new(SEM_NUM));
+    
+            for i in 0..NUM_THREADS {
+                let s = sem.clone();
+                let t = std::thread::spawn(move || {
+                    for _ in 0..NUM_LOOP {
+                        s.wait();
+    
+                        // 아토믹하게 증가 및 감소
+                        unsafe { CNT.fetch_add(1, Ordering::SeqCst)}; // atomic 덧셈 
+                        // SeqCst는 메모리 명령의 순차적 일관성(Sequential consistency)을 보장하는 방식
+                        // 즉, 메모리 재배치 없이 코드에 작성된 그대로 프로그램을 컴파일하는 것과 동일한 결과가 나오도록 함
+                        // 그만큼 최적화가 제한이 있음. (https://m.blog.naver.com/sssang97/221660436556)
+                        let n = unsafe {CNT.load(Ordering::SeqCst)}; 
+                        println!("semaphore: i = {}, CNT ={}", i, n);
+                        assert!((n as isize) <= SEM_NUM);
+                        unsafe{CNT.fetch_sub(1, Ordering::SeqCst)};  // atomic 뺄셈
+    
+                        s.post();
+                    }
+                });
+                v.push(t);
+            }
+            for t in v {
+                t.join().unwrap();
+            }
+        }    
+    }
+    // -------------------------------------------------------------------
+
+    // 3. semaphore 를 이용하여 길이가 유한한 channel (message queue) 구현
+    // (실제 channel 을 이용하고자 한다면 std::sync::mpsc::sync_channel 사용 가능.)
+
+    // sender
+    use std::collections::LinkedList;
     use std::sync::Arc;
+    
+    #[derive(Clone)]                    // struct 내 각 field 가 clone 가능하도록
+    pub struct Sender<T> {
+        sem: Arc<Semaphore>,            // queue 길이를 Semephore.max 로 한정
+        buf: Arc<Mutex<LinkedList<T>>>, // data 가 push / pop 되는 queue
+        cond: Arc<Condvar>,             // queue 를 읽는 thread 에 대한 condition variable
+    }
 
-    const NUM_LOOP: usize = 100_000;
-    const NUM_THREADS: usize = 8;
-    const SEM_NUM: isize = 4;
+    impl<T: Send> Sender<T> {           // Send trait : Rust 표준 library 에 thread 간 전송이 가능하도록 정의된 types (모음) 
+        pub fn send(&self, data: T) {
+            self.sem.wait();            // queue 의 최대값에 도달하면 대기
+                                        // 최대값(제한 길이) 에 도달하지 않았다면, 
+            let mut buf = self.buf.lock().unwrap(); // 권한을 얻어 lock 을 걸고
+            buf.push_back(data);    // data 를 queue 에 추가하고
+            self.cond.notify_one();      // condition variable 을 이용하여 읽기 측에 (wake up) 알림
+        }
+    }
 
-    static mut CNT: AtomicUsize = AtomicUsize::new(0); // AtomicUsize : threads 간 공유해도 safe 한 usize ?? tips04 참조
+    // receiver
+    pub struct Receiver<T> {            // Sender struct 와 동일한 field
+        sem: Arc<Semaphore>,
+        buf: Arc<Mutex<LinkedList<T>>>,
+        cond: Arc<Condvar>,
+    }
 
-    {
+    impl<T> Receiver<T> {
+        pub fn recv(&self) -> T {                           // 받기를 실행하면
+            let mut buf = self.buf.lock().unwrap(); // 권한을 얻어 lock 을 걸고
+            loop {
+                if let Some(data) = buf.pop_front() {    // pop 을 실행된다면 (== queue 에 쌓여있는것이 있어, 꺼낼것이 있다면)
+                    self.sem.post();                        // semaphore count 감소, wait 상태인 thread 에 (wake up) 알리고
+                    return data;                            // data 는 return 
+                }
+
+                buf = self.cond.wait(buf).unwrap();  // queue 가 비여 있다면, wait
+                // println!("channel is empty");            // 해당 code 를 넣으면 실행 첫줄에만 출력 확인 가능.
+            }
+        }
+    }
+
+    // 구현한 Semaphore, Sender, Receiver 를 이용한 channel 구현 (sender, receiver) 생성
+    pub fn channel<T>(max: isize) -> (Sender<T>, Receiver<T>) {
+        assert!(max > 0);
+        let sem = Arc::new(Semaphore::new(max));
+        let buf = Arc::new(Mutex::new(LinkedList::new()));
+        let cond = Arc::new(Condvar::new());
+        let tx = Sender {
+            sem: sem.clone(),
+            buf: buf.clone(),
+            cond: cond.clone(),
+        };
+        let rx = Receiver{sem, buf, cond};
+
+        (tx, rx)
+    } 
+    // ------------------------------------------------------------------- 
+
+    // 4. 작성한 channel 사용하여 thread 간 data 를 송,수신
+    exe();
+
+    fn exe() {
+        const NUM_LOOP: usize = 10_000;
+        const NUM_THREADS: usize = 8;
+
+        let (tx, rx) = channel(4);
         let mut v = Vec::new();
-        //SEM_NUM 만큼 동시 실행 가능한 semaphore
-        let sem = Arc::new(Semaphore::new(SEM_NUM));
 
+        // 수신용 thread
+        let t = thread::spawn(move || {
+            let mut cnt = 0;
+            while cnt < NUM_THREADS * NUM_LOOP {
+                let n = rx.recv();
+                println!("recv: (sender's thread_num , sending loop_num) = {:?}", n);
+                cnt += 1;
+            }
+        });
+
+        v.push(t);
+
+        // 송신용 thread
         for i in 0..NUM_THREADS {
-            let s = sem.clone();
-            let t = std::thread::spawn(move || {
-                for _ in 0..NUM_LOOP {
-                    s.wait();
-
-                    // 아토믹하게 증가 및 감소
-                    unsafe { CNT.fetch_add(1, Ordering::SeqCst)}; // mutable static 변수 값을 수정하기 위해 unsafe 사용 https://m.blog.naver.com/sssang97/221660436556
-                    // SeqCst는 메모리 명령의 순차적 일관성(Sequential consistency)을 보장하는 방식입니다.
-                    // 즉, 메모리 재배치 없이 코드에 작성된 그대로 프로그램을 컴파일하는 것과 동일한 결과가 나오도록 하라는 것입니다.
-                    // 그만큼 최적화가 제한되기 때문에 최대한 지양하는 방식이기도 합니다.
-                    let n = unsafe {CNT.load(Ordering::SeqCst)}; 
-                    println!("semaphore: i = {}, CNT ={}", i, n);
-                    assert!((n as isize) <= SEM_NUM);
-                    unsafe{CNT.fetch_sub(1, Ordering::SeqCst)};
-
-                    s.post();
+            let tx0 = tx.clone();
+            let t = thread::spawn(move || {
+                for j in 0..NUM_LOOP {
+                    tx0.send((i, j));
                 }
             });
-            v.push(t);
 
+            v.push(t);
         }
+
         for t in v {
             t.join().unwrap();
         }
     }
 }
+
+
 
 
 ///-------------------------------------------------------------
