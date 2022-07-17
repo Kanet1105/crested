@@ -128,12 +128,21 @@ fn tips03() {
 ///     b. y = 6 : thread1 가 value 를 update 한 이후, thread2 가 update
 ///     c. y = 2 : thread2 (read) - thread1(read and write) - thread2(write) 한 경우
 ///
-/// a. b. 는 문제라기보다는 process 간 어떻게 인과관계를 설정하는가에 따라 최종 결과가 바뀔 수 있음을 보여주는 case 이다. 
-/// c. case 로 문제를 한정해도, read-modify-write atomic 처리만으로 해결할 수 없다. 
-/// 이를 해결하기 위해 (앞에서 설명이 부족했던) ordering 이 필요하다.
+/// 만약 해당 code 의도한 정답이 y = 6 (thread1 완료 후 thread2 작업) 이라고 가정하자
+///
+/// 이를 해결하기 위해 앞에서 설명하지 못한 ordering 의 개념을 추가하여 설명하면, (우선 2가지만)
+///
+/// * SeqCst (Sequentially-Consistent) 
+/// 현대적인 CPU 는 단위 시간당 실행 명령수 (instuctions-per-second, IPC) 를 높이기 위해
+/// out-of-order 를 실행하여, 일반적으로는 thread 간 작업의 우선순위대로 진행시킬수 없다. 
+/// 이 때, Ordering::SeqCst 를 적용하면 data access 조건을 정해진 순서대로 순차적 접근하게 만들어
+/// 각 thread 작업에 대해 SeqCst 조건을 적용한다면, 원하는 결과를 얻을 수 있을 것이다. 
+/// 다만, 해당 과정은 multi-threading 의 장점이 사라지게 되며, IPC 를 낮추는 효과를 가져오게된다.
 /// 
-/// * Acquire-Release     
-/// 우선 code 작성자가 의도한 정답이 y = 6 (thread1 완료 후 thread2 작업) 이라고 가정하자
+/// 만약 SeqCst 를 read-wirte 전체 연산 과정이 아닌, 최초 read 과정에만 각각 적용한다면 좀더 IPC 를 높일수 있을 것이다.
+/// 그러나, 이 경우, c case 에 의한 문제 발생을 해결할 수 없다. 
+/// 
+/// * Acquire-Release      
 /// thread1 작업을 통해 y = 3, x = 1 의 결과를 얻었다면, 이를 memory 에 덮어쓰기 전에 
 /// 누군가 (thread2) 가 동일 memory 에 작업을 했다면 기존 값이 변경되어 있을 것이다. 
 /// 따라서, thread1 은 가져와서 (thread1 resister 에) 저장되어 있는 값이 memory 값과 일치하는지 먼저 비교하고
