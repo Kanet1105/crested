@@ -373,5 +373,17 @@ fn tips08_unsafe_method1() {
 /// (공식문서 내용과 그대로라서..  ;; ) 
 /// 이후 내용 참조 : https://rinthel.github.io/rust-lang-book-ko/ch19-01-unsafe-rust.html?highlight=unsafe#%EC%95%88%EC%A0%84%ED%95%98%EC%A7%80-%EC%95%8A%EC%9D%80-%ED%95%A8%EC%88%98-%ED%98%B9%EC%9D%80-%EB%A9%94%EC%86%8C%EB%93%9C-%ED%98%B8%EC%B6%9C%ED%95%98%EA%B8%B0
 /// 
+
+/// 09. volitale
+/// 아래 내용은 사이트에서 발췌 : http://1st.gamecodi.com/board/zboard.php?id=GAMECODILAB_QnA_etc&page=1&sn1=&divpage=1&sn=off&ss=on&sc=on&select_arrange=hit&desc=asc&no=3835
+/// CPU는 최적화를 위해 이미 캐싱한 변수에 대해서는 메모리까지 다녀오지 않습니다. (최적화!)
+/// 그러나 멀티스레드에서는 위의 경우는 문제를 발생시키죠
+/// A스레드의 캐시에 변수가 있는데
+/// B스레드가 변수의 값을 바꾼 경우
+/// A스레드는 올바른 변수의 값을 알기위해서는 반드시 메모리까지 다녀와야만 합니다.
+/// 이렇게 '반드시 메모리에서 읽어올것' 이라고 명시해주는 키워드가 바로 volatile 입니다.
+
+/// 
+/// 
 /// ---------------------------
 pub fn eof() {}

@@ -358,7 +358,7 @@ fn p128() {
     }
 
     // receiver
-    pub struct Receiver<T> {            // Sender struct 와 동일한 field
+    pub struct Receiver<T> {             // Sender struct 와 동일한 field
         sem: Arc<Semaphore>,
         buf: Arc<Mutex<LinkedList<T>>>,
         cond: Arc<Condvar>,
@@ -436,7 +436,149 @@ fn p128() {
     }
 }
 
+/// 3.9 (Leslie Lamport's) Bakery Algorithm
+/// 
+/// 앞에서 semaphore 로 구현한 thread 간 memory 공유는 atomic 을 사용하여 구현하였다.
+/// 그런데 atomic 을 지원하지 않는 일부 하드웨어서는 어떻게 구현해야 할까?
+/// -> Bakery Algorithm 은 각 thread 들이 은행의 손님들처럼 각 대기 번호를 부여받고
+///    해당 대기번호에서 본인 작업을 실행하도록 허가해준다.
+/// 다만, 해당 방법을 하기 위해서 CPU ordering 이 순처적으로 진행되어야 하는데,
+/// 현대적 CUP 는 기본적으로 "out of order" 라는 고속화 방법으로 처리하여 순서가 보장되지 않는다.
+/// 따라서 이에 대한 내용이 code 에도 구성되어야 한다. 
 
+#[test]
+fn p136() {
+    use std::ptr::{read_volatile, write_volatile}; // volatile 에 대하여.. tips0
+    use std::sync::atomic::{fence, Ordering};
+    use std::thread;
+
+    const NUM_THREADS: usize = 4;
+    const NUM_LOOP: usize = 100;
+
+    // volatile 용 macro                                    // The `expr` designator is used for expressions.
+    macro_rules! read_mem {                                 // The `ident` designator is used for variable/function names.
+        ($addr: expr) => { unsafe{ read_volatile($addr)}};  // -> 그러나 &x 와 같이 참조형을 쓰는 경우도 expr 로 써야...
+    // pub unsafe fn read_volatile<T>(src: *const T) -> T   // https://doc.rust-lang.org/rust-by-example/macros/designators.html
+    }
+
+    macro_rules! write_mem {
+        ($addr: expr, $val: expr) => { unsafe{ write_volatile($addr, $val) }};
+        //              pub unsafe fn write_volatile<T>(dst: *mut T, src: T)
+    }
+
+    // bakery algorithm's type
+    struct BakeryLock {
+        entering: [bool; NUM_THREADS],          // i 번째 thread 가 ticket 을 취득 중(processing)이면 entering[i] == true
+        tickets: [Option<u64>; NUM_THREADS],    // i 번째 thread 의 ticket 은 ticket[i]
+    }
+
+    impl BakeryLock {
+        fn lock(&mut self, idx: usize) -> LockGuard {   // idx : thread no.
+            // 여기서부터 ticket 취득 처리       // write_mem 작업을 하기전에 해당 memory lock & Atomic 을 설정해야 하는데, 
+            fence(Ordering::SeqCst);      // system 이 atomic 을 지원하지 않을 경우에 대한 프로그램이므로, out of order 발생을 방지하기 위해 쓰기전,후에 memory barrier 를 걸어준다.
+            write_mem!(&mut self.entering[idx], true);  // true : ticket 를 취득중(processing)인 상태 (true 이면 해당 memory 접근을 spin lock 상태로 대기)
+            fence(Ordering::SeqCst);                
+
+            // 현재 배포되어 있는 ticket의 최대값 취득
+            let mut max = 0;                       
+            for i in 0..NUM_THREADS {                         // 각 thread 의 ticket 번호를 저장하고 있는 memory 에
+                if let Some(t) = read_mem!(&self.tickets[i]) {  // read_mem!(해당 raw pointer) 접근하여 현재 thread ticket 번호를 가져와서 
+                    max = max.max(t);                                // 그중 가장 큰값(현재 발급된 마지막 번호표)을 가진 thread 의 ticket 값을 저장한다.
+                }
+            }
+            // 최대값 +1 을 자신의 ticket 번호로 한다.
+            let ticket = max + 1;                        // 최신값 + 1 을 대기 번호표로 받아
+            
+            write_mem!(&mut self.tickets[idx], Some(ticket)); // 자신의 ticket 값을 최신 발급 번호로 쓰기
+                                                              // 그런데 이때는 memory barrier 가 없어도 되나?? 이유를 모르겠음.  
+            fence(Ordering::SeqCst);
+            write_mem!(&mut self.entering[idx], false);       // false 로 바꿔서 ticket 발급은 받았으나, 아직 대기중 (입장하지 못한) 상태로 표시 (memory 접근시 대기 X)
+            fence(Ordering::SeqCst);
+
+            // 여기서부터 wait 처리
+            for i in 0..NUM_THREADS {
+                if i == idx {
+                    continue;
+                }
+
+                // thread i 가 ticket 을 취득 중(true)이면 (spin lock?) wait
+                while read_mem!(&self.entering[i]) {}
+
+                loop {
+                    // 자신의 ticket 값이 thread i 의 ticket 값보다 작다 or (같으면서 thread 자체 번호가 작으면) -> 대기 종료
+                    // thread i ticket 값이 없어도  -> 대기 종료
+                    // 즉, 내가 가진 순서표가 작으면 다음 thread 랑 비교하러 이동, 
+                    // 혹시 ticket 발급 과정 (fn lock) 이 여러 thread 에서 동시적으로 진행하여 같은 번호를 가질 수 있다. 
+                    // 이때는 thread 번호가 빠른 process 가 먼저 처리된다. 
+                    // 만약 지금 비교하고 있는 thread 가 ticket 값을 가지고 있지 않아도 이동.
+                    match read_mem!(&self.tickets[i]) {
+                        Some(t) => {
+                            if ticket < t || (ticket == t && idx < i) {
+                                break;
+                            }
+                        }
+                        None => {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            fence(Ordering::SeqCst); 
+            LockGuard {idx}    // return value
+        }
+    }
+
+    // lock 관리용 type
+    struct LockGuard {
+        idx: usize,
+    }
+
+    // scope 을 벗어나면 자동으로 해당 memory freeing 되도록 drop trait 에 implement 
+    impl Drop for LockGuard {
+        fn drop(&mut self) {
+            fence(Ordering::SeqCst);
+            write_mem!(&mut LOCK.tickets[self.idx], None);
+        }
+    }
+
+    // global variable (동작 확인용)
+    static mut LOCK: BakeryLock = BakeryLock {  // mutable global variable -> unsafe block 에서 사용해야
+        entering: [false; NUM_THREADS],
+        tickets: [None; NUM_THREADS],
+    };
+
+    static mut COUNT: u64 = 0;
+
+    exe();
+
+    fn exe() {
+        let mut v = Vec::new();
+
+        for i in 0..NUM_THREADS {
+            let th = thread::spawn(move || {
+                for _ in 0..NUM_LOOP {
+                    let _lock = unsafe { LOCK.lock(i) };
+                    unsafe {
+                        let c = read_volatile(&COUNT);
+                        write_volatile(&mut COUNT, c + 1);
+                        println!("thread : {}, ticket : {}", i, c);
+                    }
+                }
+            });
+            
+            v.push(th);
+        }
+
+        for th in v {
+            th.join().unwrap();
+        }
+
+        println!("COUNT = {} (expected = {})", unsafe{ COUNT }, NUM_LOOP * NUM_THREADS);
+    }
+
+
+}
 
 
 ///-------------------------------------------------------------
