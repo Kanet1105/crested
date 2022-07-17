@@ -576,8 +576,6 @@ fn p136() {
 
         println!("COUNT = {} (expected = {})", unsafe{ COUNT }, NUM_LOOP * NUM_THREADS);
     }
-
-
 }
 
 
