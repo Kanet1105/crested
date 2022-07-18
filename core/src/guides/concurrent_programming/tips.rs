@@ -110,27 +110,9 @@ fn tips03() {
 }
 
 /// 04. ordering (Acquire-Release)
-/// (참고 : https://doc.rust-lang.org/nomicon/atomics.html?highlight=atomic%20usize#atomics)
-/// foundation2.rs 에서 언급한 atomic 에서 같이, 하나의 value 에 여러 thread 가 작업을 했을 때,
-/// 그 결과값을 보장할 수 없는 경우가 발생한다. 따라서 해당 연산에 대해 atomic 처리가 보장되어야 한다.
-/// 그러나 foundation2.rs 에서도 의문점이 있었듯이, x86 compiler 의 read-modify-write atomic 처리 만으로
-/// shared value 의 연산 결과를 보장할 수 없다. 
-/// 해당 설명에서 ordering 에 대한 설명이 제대로 되어 있지 않기 때문이다. 
+/// => ch04_problems_of_concurrent_programmings.rs 4.7 Memory barrier (Memory fence) 로 변경
+///    (기존 설명이 불확실하고 틀린점이 많아 대부분 삭제함)
 /// 
-///     initial state: x = 0, y = 1
-///     THREAD 1        THREAD2
-///     y = 3;          if x == 1 {
-///     x = 1;              y *= 2;
-///                     }
-/// 
-///     위의 경우, y 의 결과 값은 아래 3가지 시나리오에 의해 다르게 결정될수 있다.
-///     a. y = 3 : thread2 가 먼저 작업이 완료된 이후, thread1 의 내용이 마지막에 메모리에 씀.
-///     b. y = 6 : thread1 가 value 를 update 한 이후, thread2 가 update
-///     c. y = 2 : thread2 (read) - thread1(read and write) - thread2(write) 한 경우
-///
-/// 만약 해당 code 의도한 정답이 y = 6 (thread1 완료 후 thread2 작업) 이라고 가정하자
-///
-/// 이를 해결하기 위해 앞에서 설명하지 못한 ordering 의 개념을 추가하여 설명하면, (우선 2가지만)
 ///
 /// * SeqCst (Sequentially-Consistent) 
 /// 현대적인 CPU 는 단위 시간당 실행 명령수 (instuctions-per-second, IPC) 를 높이기 위해
@@ -147,8 +129,10 @@ fn tips03() {
 /// 누군가 (thread2) 가 동일 memory 에 작업을 했다면 기존 값이 변경되어 있을 것이다. 
 /// 따라서, thread1 은 가져와서 (thread1 resister 에) 저장되어 있는 값이 memory 값과 일치하는지 먼저 비교하고
 /// 일치하면 그때 memory 값을 thread1 가 연산한 결과값으로 바꾸어 놓는다. 
-/// 이를 Compare and Swap (CAS) 라고 한다. 
-/// 
+/// 이를 Compare and Swap (CAS) 라고 한다.  
+/// (CAS 와 Acquire-Relase 에 대한 추가 고찰) 
+/// => ch04_problems_of_concurrent_programmings.rs 4.7 Memory barrier (Memory fence) -> fn lock(&self) 참조
+///  
 /// 이를 x86-64 complie 로 작성하면
 /// 
 ///     cmpq %rsi, (%rdi)   ; %rsi == (%rdi)                     // rsi register 의 값과 rdi register 가 가리키는 메모리 상의 값을 비교하여 ZF flag 에 저장
