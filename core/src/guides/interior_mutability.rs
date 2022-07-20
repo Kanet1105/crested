@@ -47,7 +47,7 @@ pub fn example_1() {
     }
     println!("data: {:?}", &data);
     println!("component_1: {:?}", &component_1);
-    println!("component_2: {:?}", *component_2);
+    println!("component_2: {:?}", &component_2);
 }
 
 // Rc<RefCell<T>> 를 통해서 구현.
