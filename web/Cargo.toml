@@ -4,6 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+path = "src/main.rs"
+name = "web"
 
 [dependencies]
-rocket = "0.5.0-rc.2"
+actix-web = "4"
+tokio = { version = "1.20.0", features = ["full"] }
+
+[dev-dependencies]
+reqwest = "0.11"
