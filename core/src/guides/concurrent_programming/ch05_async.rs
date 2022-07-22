@@ -3,6 +3,107 @@
 /// 이벤트 대응 작동 기술 (Linux) 관련 참고 자료
 /// * file descriptor : https://dev-ahn.tistory.com/96
 /// * select 와 epoll : https://ozt88.tistory.com/21
+/// 
+/// linux epoll 사용하여 event 받기 (linux 에서만 동작, [devendencies] nix = "0.24.2")
+/// epoll
+/*
+use nix::sys::epoll::{
+    epoll_create1, epoll_ctl, epoll_wait, EpollCreateFlags, 
+    EpollEvent, EpollFlags, EpollOp,
+};
+use std::collections::HashMap;
+use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::net::TcpListener;
+use std::os::unix::io::{AsRawFd, RawFd};
+
+fn main() {
+    // epoll flag 단축계열
+    let epoll_in = EpollFlags::EPOLLIN;
+    let epoll_add = EpollOp::EpollCtlAdd;
+    let epoll_del = EpollOp::EpollCtlDel;
+
+    // TCP 10000 port listen
+    let listener = TcpListener::bind("127.0.0.1:10000").unwrap();
+
+    // epoll 용 객체 생성
+    // epoll 에서 감시할 socket (file descriptor) 을  epoll 용 객체로 등록한뒤, 
+    // 감시대상 이벤트가 발생할 때까지 대기하고 이벤트 발생 후 해당 이벤트에 대응하는 처리를 수행
+    let epfd = epoll_create1(EpollCreateFlags::empty()).unwrap(); 
+
+    // listen socket 을 epoll 감시 대상에 추가 
+    let listen_fd = listener.as_raw_fd();
+
+    // listen socket 에 event 를 발생 시, 해당 data 를 담을 EpollEvent type instance 를 생성 (?) 
+    let mut ev = EpollEvent::new(epoll_in, listen_fd as u64);
+    
+    // epoll_ctrl 함수는 감시 대상 추가, 삭제, 수정하는 함수
+    epoll_ctl(epfd, epoll_add, listen_fd, &mut ev).unwrap();
+    
+
+    let mut fd2buf = HashMap::new();
+    let mut events = vec![EpollEvent::empty(); 1024];  // ev 를 담을 vector
+
+    // epoll wait 로 이벤트 발생 감시
+    // 두번째 매개변수로 전달된 슬라이스에 이벤트가 발생한 file descriptor 가 쓰여지고, 
+    // 발행한 이벤트 수를 Option type 으로 반환
+    // 세번째는 매개변수는 time out (milli secs) 조건. -1 일 때 time out X 
+    while let Ok(nfds) = epoll_wait(epfd, &mut events, -1) {
+        
+        // 이벤트가 발생한 file descriptor 에 대해 순서대로 처리. 
+        for n in 0..nfds {
+            // listen socket 과 client socket 으로 분리
+            
+            if events[n].data() == listen_fd as u64 {
+                // listen socket 이벤트 
+                // file descriptor 를 취득하고 읽기 쓰기용 객체를 생성한 뒤,
+                // epoll_ctl 함수로 epoll 에 읽기 이벤트를 감시 대상으로 등록    
+                if let Ok((stream, _)) = listener.accept() {
+                    // 읽기, 쓰기 객체 생성
+                    let fd = stream.as_raw_fd();
+
+                    let stream0 = stream.try_clone().unwrap();
+                    let reader = BufReader::new(stream0);
+                    let writer = BufWriter::new(stream);
+
+                    // fd 와  reader, write 의 관계를 만듬.
+                    fd2buf.insert(fd, (reader, writer));
+
+                    println!("accept: fd = {}", fd);
+
+                    // fd 를 감시 대상에 등록
+                    let mut ev = EpollEvent::new(epoll_in, fd as u64);
+                    epoll_ctl(epfd, epoll_add, fd, &mut ev).unwrap();
+                }
+            } else {
+                // client socket
+                // client 에서 data 도착 
+                let fd = events[n].data() as RawFd;
+                let (reader, writer) = fd2buf.get_mut(&fd).unwrap();
+
+                // 1행 읽기
+                let mut buf = String::new();
+                let n = reader.read_line(&mut buf).unwrap();
+
+                // 커넥션을 close 한 경우 epoll 감시 대상에서 제외한다. 
+                if n == 0 {
+                    let mut ev = EpollEvent::new(epoll_in, fd as u64);
+                    epoll_ctl(epfd, epoll_del, fd, &mut ev).unwrap();
+                    fd2buf.remove(&fd);
+                    println!("closed: fd = {}", fd);
+                    continue;
+                }
+
+                println!("read: fd = {}, buf = {}", fd, buf);
+
+                // 읽은 데이터를 그대로 쓴다.
+                writer.write(buf.as_bytes()).unwrap();
+                writer.flush().unwrap();
+            }
+        }
+    }
+
+}
+*/
 
 /// 5.2 coroutine 과 scheduling
 /// coroutine : 중단과 재개가 가능한 함수의 총칭 (해당 책에서의 정의, 좀더 다양하게 해석되어 사용되고 있음.)
@@ -45,7 +146,7 @@ fn p186() {
 
         // 실행함수
         fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<()> {
-        // Pin type : Box 와 비슷하게 pointer 이지만 해당 pointer 참조로 move 되지 않음(onwership 이동이 안되는 pointer?) (Unpin 해야 가능해짐)  
+        // Pin : 가리키고있는 value (대상) 이 재배치(주소 변경)되는 것을 허용하지 않는 pointer) (Unpin 해야 가능해짐)  -> tips11
             match (*self).state {
                 StateHello::HELLO => {
                     print!("Hello, ");
@@ -71,23 +172,33 @@ fn p186() {
     // FutureExt : 여러 adapter 를 제공하는 Future trait 을 위한 확장 trait (ex. map, flatten for future)
     
     use futures::task::{waker_ref, ArcWake};
-    // waker_ref: Waker (Arc<impl ArcWake> type) 의 reference 생성 
+    // waker_ref:  Arc<impl ArcWake> reference 에서 Waker reference 생성
+    //      pub fn waker_ref<W>(wake: &Arc<W>) -> WakerRef<'_>  
+    //          where  W: ArcWake,      
+    //                     ㄴ Trait futures::task::ArcWake   : A way of waking up a specific task.
+    //                        pub trait ArcWake: Send + Sync {
+    //                          fn wake_by_ref(arc_self: &Arc<Self>); // 여기서 Self ? polled 되어 작업 준비가 된 task (근데 왜 대문자 Self 인지...;;)
+    //                          fn wake(self: Arc<Self>) { ... }      // 위와 동일 (차이점은 by_ref 는 data pointer 를 소모하지 않음.) 
+    //                        }     
+    //
     // Waker : executor 에게 실행할 준비가 되었음을 알림으로써 (await 상태의) task 가 waking up 하도록 함. 
     // encapsulate a RawWaker -> Waker 
     // struct RawWaker {
     //     data: *const(),       // executor 에 의해 얻어진 pointer, vtable 첫번째 매개변수로 사용
     //     vtable: &'static RawWakerVTable, // Virtual function pointer table for waker
     // } 
-    // ArcWake : 특정 task 를 깨우는 방법?? (fn wake_by_ref 와 fn wake 를 포함한 trait )
 
     use std::future::Future;
     use std::pin::Pin;
     use std::sync::{Arc, Mutex};
     use std::task::{Context, Poll};
-    // Context : 비동기 task ?
+    // Context : (일반적 의미) multi-tasking 을 지원하는 운영체제에서 Task 들은 운영체제가 정한 기준에 따라 작업이 switching 되면서 수행
+    //                        이때, 해당 Task 들의 수행 상태를 기억해서, 해당 Task 작업으로 돌아올 위치를 알아야 함. 
+    //                        이런 실행 상태 정보를 Context 라고 함.   
+    // 
     // pub struct Context<'a> {
     //      waker: &'a Waker, // lifetime coercion : invariant -> argument (contravariant 조건) / return (covariant) 에 모두 사용되므로    
-    //      _maker: PhantomData<fn(&'a ()) -> &'a ()> // PhantomData : <> 를 소유한 것처럼 "동작" 하는 항목을 표시 size : 0 type (뭔소리..;;) -> tips 10
+    //      _marker: PhantomData<fn(&'a ()) -> &'a ()> // PhantomData -> tips 10
     // }
 
     // async/await 에서 process 의 실행단위 Task
@@ -164,7 +275,7 @@ fn p189() {
         // 이 Future 의 실행이 완료할 때까지 (실행 가능 상태에서 다음 yield 전까지)
         // 해당 pin pointer 에 lock 을 권한을 얻어서 배타적으로 실행수 있도록 type 설정
         // lifetime 은 ( Future 가 언제 실행 가능한지 보증할 수 없으므로 ?) -> 'static 
-        future: Mutex<BoxFuture<'static, ()>>,
+        future: Mutex<BoxFuture<'static, ()>>,  
 
         // Executor 에 scheduling 하기 위한 channel 에 보낼 수 있는 type 이어야 하며,
         // 각 Task 는 channel 에서 처리할 때, atomic 해야
@@ -240,7 +351,99 @@ fn p189() {
         }
     }
 
+    // -- 앞에서 예시된 비동기로 task 를 실행하는 Hello, World (polling) 함수 구현 --
+    struct Hello {
+        state: StateHello,
+    }
+
+    enum StateHello {
+        HELLO,
+        WORLD,
+        END,
+    }
+
+    impl Hello {
+        fn new() -> Self {
+            Hello {state: StateHello::HELLO,} // 초기 상태
+        }
+    }
+
+    impl Future for Hello {
+        type Output = ();
+
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
+            match (*self).state {
+                StateHello::HELLO => {
+                    print!("Hello, ");
+                    (*self).state = StateHello::WORLD;
+                    cx.waker().wake_by_ref();   // 자신을 실행 큐에 넣음
+                    Poll::Pending   
+                }
+                StateHello::WORLD => {
+                    print!("World!");
+                    (*self).state = StateHello::END;
+                    cx.waker().wake_by_ref();   // 자신을 실행 큐에 넣음
+                    Poll::Pending   
+                }
+                StateHello::END => {
+                    Poll::Ready(()) // 종료
+                }
+            }
+        }
+    }
+    
+    // -- fn main --
+    // let executor = Executor::new();
+    // executor.get_spawner().spawn(Hello::new());
+    // executor.run();
+
+    // 5.3.1 Future async/await
+    // Future : coroutine 으로 구현. 다만 기존 coroutine 의 의미가 '중단, 재개가능 함수' 에서
+    //          '미래에 결정되는 값을 표현한 것' 으로 명칭적 의미를 전환해 놓은 것. (Promise 고 부르는 경우도 있음)
+    
+    // 앞의 예제를 Future trait 의 async/await 을 사용하여 main 함수를 다시 구현하면
+    // -- main with async/await --
+    let executor = Executor::new();
+
+    // async 로 Future trait 의 type 으로 변환
+    executor.get_spawner().spawn(async {
+        let h = Hello::new();
+        h.await;    // poll 을 호출 해서 실행
+        // h.await 은 아래 내용의 추상화 형태
+        // match h.poll(cx) {
+        //    Poll::Pending => return Poll::Pending,
+        //    Poll::Result(x) => x,
+        // }
+    });
+    executor.run();
 }
+
+/// 비동기 프로그래밍 의 callback 을 사용한 구현 vs async/await 사용한 구현
+/// 
+///             callback               vs           async/await
+///     x.poll(|a|{         
+///         y.poll(|b|{                       x.await + y.await + c.await
+///             z.poll(|c|{
+///                 a + b + c        
+///             })
+///         })
+///     })
+
+/// 5.3.2 IO 다중화와 async/await (linux only)
+/// epoll 을 이용하여 Future 발생 -> poll -(기다림)-> ...
+/// IO event 가 발생 -> IO queue -> wake -> queue(scheduler) -> Executor 로 실행되는 구조를 구현
+/// Diagram
+///                                       IO Selector
+///                                         epoll
+///                                           ↑
+///      Executor   <-   | 실행큐 |  <-    Task 정보  
+///         ↓                       wake      ↑
+///     Task/Waker                            |
+///     - Future                              |
+///       ㄴFuture  ->   | IO 큐 |   ---------- 
+///       ㄴFuture
+///        ... 
+
 
 /// --------------------------------------------
 pub fn eof() {}
