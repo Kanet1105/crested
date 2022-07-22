@@ -376,6 +376,49 @@ fn tips08_unsafe_method1() {
 /// A스레드는 올바른 변수의 값을 알기위해서는 반드시 메모리까지 다녀와야만 합니다.
 /// 이렇게 '반드시 메모리에서 읽어올것' 이라고 명시해주는 키워드가 바로 volatile 입니다.
 
+/// 10. PhantomData
+/// https://docs.rs/rustc-std-workspace-std/latest/std/marker/struct.PhantomData.html
+/// https://velog.io/@koo8624/Rust-PhantomDataT
+/// https://doc.rust-lang.org/nomicon/phantom-data.html
+/// (해석한 내용이 정확지 않을 수도....)
+/// struct 를 사용하여 정의된 type 내부 field 중에 만약 type 이 raw pointer 로 되어 있다면, 
+/// 해당 field 의 lifetime 은 어떻게 명시적으로 사용될 수 있을까? 
+/// (공식 문서 예제에서) 만약 raw pointer 로 메모리 시작 위치와 끝 위치를 명시한 Slice struct 이 있다고 할때,
+/*
+struct Slice<'a, T:'a> {
+    start: *const T, 
+    end: *const T,
+}
+ */
+/// generic T 에 대한 lifetime 을 명시해야 Slice type 정의가 가능하지만,
+/// (raw pointer 에 대한 lifetime 명시는 error 표시는 되지 않지만 아마 안되는 거 같다...)
+/// 이는 rust 문법상 성립되지 않으며, 해당 instance 에 대해 drop 도 문제가 발생한다.
+/// (raw pointer 로 type 이 정의되었는 의미는 곧 해당 memory 를 사용한다는 의미이므로 drop 이 필요)
+#[test]
+fn tips10(){
+    use std::marker::PhantomData;
+
+    struct Slice<'a, T:'a> {
+        start: *const T,
+        end: *const T,
+        phantom: PhantomData<&'a T>,
+        // 이렇게 marker trait PhantomData 의 type 으로 T 에 대한 lifetime 을 명시해주면,
+        // 해당 struct 내 모든 T 에 대해 lifetime 'a 를 갖게 해준다. 
+        // 따라서 Slice type 은 'a lifetime 이내의 범위 (covariant) 에서 문제 없이 사용할수 있게 해준다.
+    }
+
+    // Vec<T> 의 각 field 의 encapsulation 을 제거해서 보면
+    pub struct Vec<T> {
+        ptr: *const T,
+        cap: usize,
+        len: usize,
+        _marker: PhantomData<T>,
+    }
+    // 의 형태로 역시 raw pointer 에 사용돈 T 에 대한 lifetime 을 PhantomData 를 사용하여 보장해준다.
+}
+
+
+
 /// 
 /// 
 /// ---------------------------
