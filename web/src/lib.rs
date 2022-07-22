@@ -1,19 +1,20 @@
-use actix_web::{App, HttpResponse, HttpServer};
+#[allow(unused)]
+use actix_web::{get, post};
+use actix_web::{App, HttpRequest, HttpResponse, HttpServer, Responder};
 use actix_web::dev::Server;
-use actix_web::web;
 
-use std::net::TcpListener;
-
-async fn health_check() -> HttpResponse {
+#[get("/health_check")]
+async fn health_check(request: HttpRequest) -> impl Responder {
+    dbg!(request);
     HttpResponse::Ok().finish()
 }
 
-pub fn run(listener: TcpListener) -> Result<Server, std::io::Error> {
+pub fn run() -> Result<Server, std::io::Error> {
     let server = HttpServer::new(|| {
         App::new()
-            .route("/health_check", web::get().to(health_check))
+            .service(health_check)
         })
-        .listen(listener)?
+        .bind(("127.0.0.1", 8080))?
         .run();
     Ok(server)
 }
