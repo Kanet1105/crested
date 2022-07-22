@@ -417,6 +417,15 @@ fn tips10(){
     // 의 형태로 역시 raw pointer 에 사용돈 T 에 대한 lifetime 을 PhantomData 를 사용하여 보장해준다.
 }
 
+/// 11. pin
+/// 가리키는 value (대상) 가리키고있는 value (대상) 이 재배치(주소 변경)되는 것을 허용하지 않는 pointer) (Unpin 해야 가능해짐)
+/// 
+/// 언제 주로 사용할까?
+/// self 를 사용하여 struct 내 field 에 접근할때.
+///    -> instance 를 생성한 후 만약 해당 instance 의 시작 주소값이 변경된되면, 
+///       해당 instance 내 field 에 접근했을 때, 기존의 value 가 아닌 쓰레기 값의 위치에서 읽어오게 됨.
+/// 
+///  참고 : https://medium.com/tips-for-rust-developers/pin-276bed513fd1
 
 
 /// 
