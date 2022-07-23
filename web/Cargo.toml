@@ -5,7 +5,9 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-actix-web = "4"
+actix-web = { version = "4", features = ["rustls"] }
+rustls = "0.20.6"
+rustls-pemfile = "1"
 tokio = { version = "1.20.0", features = ["full"] }
 
 [dev-dependencies]
