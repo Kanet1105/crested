@@ -54,7 +54,6 @@ fn example_1_inner<'a>(numer: &'a i32, denom: &'a i32) -> Result<i32, EvenIntege
 }
 
 /// 하지만 반환해야 하는 에러 타입이 2 개가 넘을 경우 dynamic dispatch 로 해결 가능
-#[test]
 fn example_2() {
     let numerator = 6;
     let denominator = 6;
@@ -70,5 +69,40 @@ fn example_2_inner<'a>(numer: &'a i32, denom: &'a i32) -> Result<i32, &'a dyn st
         Err(&EvenIntegerError)
     } else {
         Ok(answer)
+    }
+}
+
+/// "?" 를 사용한 error chaining.
+#[test]
+fn example_3() {
+    let numerator = 6;
+    let denominator = 6;
+    let answer = sanitizer(&numerator, &denominator);
+    dbg!(&answer);
+    answer.unwrap();
+}
+
+fn sanitizer<'a>(numer: &'a i32, denom: &'a i32) -> Result<i32, Box<dyn std::error::Error>> {
+    let answer = numer / denom;
+    is_even(&answer)?;
+    dbg!("The answer is not even!");
+    is_one(&answer)?;
+    dbg!("The answer is not 1!");
+    Ok(answer)
+}
+
+fn is_even(answer: &i32) -> Result<(), Box<dyn std::error::Error>> {
+    if answer % 2 == 0 {
+        Err(Box::new(EvenIntegerError))
+    } else {
+        Ok(())
+    }
+}
+
+fn is_one(answer: &i32) -> Result<(), Box<dyn std::error::Error>> {
+    if *answer == 1 {
+        Err(Box::new(OneError))
+    } else {
+        Ok(())
     }
 }
