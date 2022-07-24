@@ -9,7 +9,11 @@ pub mod types2;
 pub mod idioms1;
 pub mod idioms2; // gon's summary
 
-//Interior Mutability
+/// Interior Mutability
 pub mod interior_mutability;
+
+/// Error Handling
+pub mod error_handling;
+
 // 책 concurrent programming 관련
 pub mod concurrent_programming;
