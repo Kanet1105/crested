@@ -16,6 +16,8 @@ struct Cage {
     lane: VecDeque<>,
 }
 
+pub trait Animal {}
+
 struct Elephant {
     name: String,
 }
