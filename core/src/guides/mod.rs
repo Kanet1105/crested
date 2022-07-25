@@ -15,5 +15,8 @@ pub mod interior_mutability;
 /// Error Handling
 pub mod error_handling;
 
-// 책 concurrent programming 관련
+/// Exercises
+pub mod exercises;
+
+/// 책 concurrent programming 관련
 pub mod concurrent_programming;
