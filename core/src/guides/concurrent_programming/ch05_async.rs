@@ -429,6 +429,130 @@ fn p189() {
 ///         })
 ///     })
 
+/// 5.4 비동기 라이브러리
+///
+/// tokio 는 기본적으로 실행환경의 CPU core 수 만큼 thread 를 실행
+/// worker thread : 실제 처리를 수행하기 위한 thread 
+///                 thread pool 이든 동적 thread 생성이든 모든 실행 모델을 의미 
+///
+/// multithread 를 thread pool 로 구성 diagram
+/// 
+///                            thrad1 
+///                         ↗   Executor
+///                         
+///                            thread2
+///                         ↗   Executor 
+///  task ->  | 실행 큐 |
+///                         ↘ thread3  
+///                              Executor
+///                             
+///                         ↘ thread4
+///                              Executor
+///                   
+/// tokio 를 이용한 sleep
+/*
+fn p212(){
+    use std::{thread, time};
+
+    #[tokio::main]
+    async fn main() {
+        tokio::join!(async move {
+            let ten_secs = time::Duration::from_secs(10);
+            // thread::sleep(ten_secs);         // std::thread 모듈 안의 sleep 함수를 호출해서 sleep -> 불필요한 work thread 점유
+            tokio::time::sleep(ten_secs).await; // sleep 하는 동안 해당 taske 는 Tokio 의 Executor 에 의해 work thread 에서 대피함.
+        });
+    }
+}
+*/
+
+/// tokio 를 이용한 async/await 3가지 설정 (multithread, Mutex lock, sleep)
+/* 
+fn p215() {
+    use std::{sync::Arc, time};
+    use tokio::sync::Mutex;
+
+    const NUM_TASKS: usize = 8;
+
+    async fn lock_sleep(v:Arc<Mutex<u64>>) {
+        let mut n = v.lock().await;     // 1. lock 권한을 얻은 상태에서 await 
+        let ten_secs = time::Duration::from_secs(10);
+        tokio::time::sleep(ten_secs).await;     // 2. tokio sleep await
+        *n += 1;
+    }
+
+    #[tokio::main]
+    async fn main() -> Result<(), tokio::task::JoinError> {
+        let val = Arc::new(Mutex::new(0));
+        let mut v = Vec::new();
+
+        for _ in 0..NUM_TASKS {
+            let n = val.clone();
+            let t = tokio::spawn(lock_sleep(n));
+            v.push(t);
+        }
+
+        for i in v {
+            i.await?;   // 3. mutilthreading 실행에 대한 await
+        }
+
+        Ok(())
+    }
+}
+*/
+
+/// tokio channels
+/// - mpsc      : 다수 생산자, 단일 소비자
+/// - oneshot   : 단일 생산자, 단일 소비자, 한번만 송수신 가능 -> 변수처럼 사용가능
+/// - broadcast : 다수 생산자, 다수 소비자
+/// - watch     : 단일 생산자, 다수 소비자, 감시(monitoring) 용으로 사용 가능, 수신자는 과거의 값은 얻을수 없다.
+/// 
+/// oneshot 을 이용하여 미정의 값을 매개변수로 사용하기
+/// 
+/*
+fn p217() {
+    use tokio::sync::oneshot;
+
+    // tx : 미래 언젠가의 시점에서 값이 결정되는 매개변수를 받음
+    async fn set_val_later(tx: oneshot::Sender<i32>) {
+        let ten_secs = std::time::Duration::from_secs(10);
+        tokio::time::sleep(ten_secs).await;
+        if let Err(_) = tx.send(100) {  // 보낸 tx 가 없으므로 sleep 이 끝나면 100을 보낸다.
+            println!("failed to send");
+        }
+    }
+
+    #[tokio::main]
+    pub async fn main() {
+        let (tx, rx) = oneshot::channel();
+        tokio::spawn(set_val_later(tx));   // argument tx 의 값은 아직 정해지지 않았으나 future type 으로 spawn 가능
+
+        match rx.await {    // rx 값을 받을 때까지 대기
+            Ok(n) => {
+                println!("n = {}", n);
+            } 
+            Err(e) => {
+                println!("failed to receive: {}", e);
+                return;
+            }
+        }
+    }
+} 
+ */
+
+ /// 최종 출력은 10 초를 기다린후 100 을 보내고 이를 받아서 Ok(100) 이 되므로
+ /// n = 100 의 결과를 얻을 수 있다.  
+
+
+
+
+
+
+
+
+
+
+
+/// -- 미완성 --
 /// 5.3.2 IO 다중화와 async/await (linux only)
 /// epoll 을 이용하여 Future 발생 -> poll -(기다림)-> ...
 /// IO event 가 발생 -> IO queue -> wake -> queue(scheduler) -> Executor 로 실행되는 구조를 구현
