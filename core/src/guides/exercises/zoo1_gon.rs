@@ -9,18 +9,21 @@
 /// 예)
 /// Hippo1 - Lion1 - Elephant1 - Elephant2 - Hippo1
 /// 출력 => "Elephant1 and Elephant2 fight."
-use rand::random;
-use std::collections::VecDeque;
-use std::boxed::Box;
 
 // (최신 순서 (역순) 으로 정렬)
 // ----------------------------------------------------------------
 // 02. Generic -> Box & trait : 성공!!
 // - VecDeque 에 다양한 type 을 넣을 수 있도록 Box 로 감싸서 넣어 볼수 있을 듯.
 // - Box 내부에 어떻게 다양한 type 이 들어갈수 있게 할것인가? (trait ??)
+#[allow(non_snake_case)]
 
 #[test]
 fn ex02() {
+    
+    use rand::random;
+    use std::collections::VecDeque;
+    use std::boxed::Box;
+
     struct Cage {
         lane: VecDeque<Box<dyn Animal>>,
     }
@@ -162,9 +165,13 @@ fn ex02() {
 // 01. Generic 만으로 구성 (trait 사용 X) -> 실패!! (학습기록으로 남겨놓음)
 // - Cage struct 에서 type 에 대한 문제가 발생하지는 않음. 
 // - 그러나 해당 method 를 하나의 type 사용하면 다른 type 들은 쓸수 없게 되어 버림.
-
+/* 
 #[test]
 fn ex01() {
+    use rand::random;
+    use std::collections::VecDeque;
+    use std::boxed::Box;
+
     struct Cage<T> {
         lane: VecDeque<T>,
     }
@@ -219,6 +226,7 @@ fn ex01() {
         }        
     }
 }
+*/
 // ----------------------------------------------------------------
 
 
