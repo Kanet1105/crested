@@ -120,9 +120,9 @@ fn p124plus () {
 
     fn t_child(wait_id: u64, p:Arc<(Mutex<bool>, Condvar)>) {
         let &(ref lock, ref cvar) = &*p;
-        let mut started = lock.lock().unwrap();
+        let started = lock.lock().unwrap();
 
-        cvar.wait_timeout(started, time::Duration::from_secs(wait_id)).unwrap();
+        let _ = cvar.wait_timeout(started, time::Duration::from_secs(wait_id)).unwrap();
 
         println!("t_child {}", wait_id);
     }
@@ -289,7 +289,7 @@ fn p128() {
     // 뒤에 작성된 channel 이 아닌 semaphore 동작을 확인하고 싶을때 해당 코드 활성화
 
     // test_code();
-
+    #[allow(dead_code)]
     fn test_code() {
         use std::sync::atomic::{AtomicUsize, Ordering}; // memory ordering : https://int-i.github.io/rust/2022-01-15/memory-ordering/
         use std::sync::Arc;
@@ -580,8 +580,7 @@ fn p136() {
 
 
 ///-------------------------------------------------------------
-fn main() {
-    println!("Hello, world!");
-}
+#[allow(dead_code)]
+fn eof() {}
 
 
