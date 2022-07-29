@@ -59,7 +59,7 @@ pub fn false_sharing() {
 
     
 
-    pub fn cache_line_sharing(arr: [i32; 128], pos: usize) -> (i32, i32) {    
+    pub fn _cache_line_sharing(arr: [i32; 128], pos: usize) -> (i32, i32) {    
     
         struct SyncWrapper(UnsafeCell<[i32; 128]>);
         unsafe impl Sync for SyncWrapper {}
@@ -91,7 +91,7 @@ pub fn false_sharing() {
 
 /// 
 /// 
-struct CloningLab {
+struct _CloningLab {
     subject: Vec<Box<&'static dyn Mammal>>,
 }
 
@@ -102,8 +102,8 @@ trait Mammal {
 
 #[derive(Clone)]
 struct Cat {
-    meow_factor: u8,
-    purr_factor: u8,
+    _meow_factor: u8,
+    _purr_factor: u8,
 }
 
 impl Mammal for Cat {

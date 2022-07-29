@@ -6,16 +6,17 @@
 /// 
 use std::time::SystemTime;
 
-struct PositiveBackend;
+struct _PositiveBackend;
 
-impl PositiveBackend{
+impl _PositiveBackend{
     fn compute(&self, number: u64) -> u64{
         number+1
     }
 }
 
+#[allow(dead_code)]
 fn main() {
-    let backend = Box::new(PositiveBackend);
+    let backend = Box::new(_PositiveBackend);
     let mut res= 0 as u64;
     let start_time = SystemTime::now();
     let total = 20_000_000 as u64;

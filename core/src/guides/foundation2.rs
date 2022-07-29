@@ -66,14 +66,14 @@ pub fn ex_cell() {
 
     #[derive(Debug)]
     struct SomeStruct {
-        regular_field: u8,
+        _regular_field: u8,
         cell_field_u8: Cell<u8>,                // low-level model u8 type Cell 을 사용하여 interior mutability 적용
         cell_field_str: Cell<&'static str>,     // satic memory 를 사용하는 &str 도 Cell 사용 (다만 reference 이므로 lifetime 명시해야)
         refcell_field_string: RefCell<String>,  // High-level model, 일반 reference 의 경우, RefCell 을 사용
     }
 
     let my_struct = SomeStruct {
-        regular_field: 1,
+        _regular_field: 1,
         cell_field_u8: Cell::new(2),
         cell_field_str: Cell::new("Hello"),
         refcell_field_string: RefCell::new("World".to_string()),
@@ -81,7 +81,7 @@ pub fn ex_cell() {
 
     println!("{:?}", my_struct);
 
-    let new_regular = 11;
+    let _new_regular = 11;
     let new_u8 = 22;
     let new_str = "HELL!";
     let new_string = "RUST!".to_string();
@@ -283,7 +283,5 @@ pub fn ex_cell() {
 /// 
 /// ---------------------------------------------------------------------------
 
-                    
-fn main() {
-    println!("Hello, world!");
-}
+#[allow(dead_code)]          
+fn eof() {}
