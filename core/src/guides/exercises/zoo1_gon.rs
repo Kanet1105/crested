@@ -19,7 +19,6 @@
 
 #[test]
 fn ex02() {
-    
     use rand::random;
     use std::collections::VecDeque;
     use std::boxed::Box;
@@ -49,12 +48,8 @@ fn ex02() {
     }
 
     impl Elephant {
-        fn new() -> Self{
-            Self { name: String::new() }
-        }
-
-        fn naming(&mut self, name: String) {
-            self.name = name;
+        fn new(name : String) -> Self{
+            Self { name }
         }
     }
 
@@ -85,12 +80,8 @@ fn ex02() {
     }
     
     impl Lion {
-        fn new() -> Self {
-            Lion { name: String::new() }
-        }
-
-        fn naming(&mut self, name: String) {
-            self.name = name;
+        fn new(name: String) -> Self {
+            Lion { name }
         }
     }
 
@@ -106,12 +97,8 @@ fn ex02() {
     }
     
     impl Hippo {
-        fn new() -> Self {
-            Hippo { name: String::new() }
-        }
-
-        fn naming(&mut self, name: String) {
-            self.name = name;
+        fn new(name: String) -> Self {
+            Hippo { name }
         }
     }
     
@@ -124,25 +111,16 @@ fn ex02() {
     // -- main --
     let mut hoons_LA_house = Cage::new();
 
-    let mut elephant = Elephant::new();
-    let mut lion = Lion::new();
-    let mut hippo = Hippo::new();
+    let mut elephant = Elephant::new("Elephant".to_string());
+    let mut lion = Lion::new("Lion".to_string());
+    let mut hippo = Hippo::new("Hippo".to_string());
 
     for i in 0..10 {
         let rand_num = random::<u8>() % 3;
         match rand_num {
-            0 => {
-                elephant.naming(format!("Elephant"));
-                hoons_LA_house.lane.push_back(Box::new(elephant.clone()));
-            },
-            1 => {
-                lion.naming(format!("Lion"));
-                hoons_LA_house.lane.push_back(Box::new(lion.clone()));
-            },
-            2 => {
-                hippo.naming(format!("Hippo"));
-                hoons_LA_house.lane.push_back(Box::new(hippo.clone()));
-            },
+            0 => hoons_LA_house.lane.push_back(Box::new(elephant.clone())),
+            1 => hoons_LA_house.lane.push_back(Box::new(lion.clone())),
+            2 => hoons_LA_house.lane.push_back(Box::new(hippo.clone())),
             _ => print!("impossible error"),
         }
 
