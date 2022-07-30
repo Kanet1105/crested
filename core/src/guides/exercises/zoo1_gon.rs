@@ -111,9 +111,9 @@ fn ex02() {
     // -- main --
     let mut hoons_LA_house = Cage::new();
 
-    let mut elephant = Elephant::new("Elephant".to_string());
-    let mut lion = Lion::new("Lion".to_string());
-    let mut hippo = Hippo::new("Hippo".to_string());
+    let elephant = Elephant::new("Elephant".to_string());
+    let lion = Lion::new("Lion".to_string());
+    let hippo = Hippo::new("Hippo".to_string());
 
     for i in 0..10 {
         let rand_num = random::<u8>() % 3;
