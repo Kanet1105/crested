@@ -189,7 +189,7 @@ fn is_heavy(previous: Weight, present: Weight) -> Result<(), Box<dyn Error>> {
     }
 }
 
-// 위 2가지 error 를 bubbling
+// 위 2가지 error 를 bubbling (Hippo - Hippo 일때 처럼 error 조건을 둘다 만족할 경우, 앞의 error 만)
 fn sanitizer(previous: &Box<dyn Animal>, present: &Box<dyn Animal>) -> Result<(), Box<dyn Error>> {
     is_fight(previous.get_name(), present.get_name())?;         // Box 는 ownership move 되지 않나???
     is_heavy(previous.get_weight(), present.get_weight())?;
